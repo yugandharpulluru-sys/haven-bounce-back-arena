@@ -6,6 +6,7 @@ var remotes := {}
 var update_timer := 0.0
 var own_score := 0
 var own_slot := 0
+var remote_shots_seen := 0
 
 func start_online(main: Node, map_index: int, weapon: String, slot: int) -> void:
 	controller = main
@@ -21,6 +22,7 @@ func start_online(main: Node, map_index: int, weapon: String, slot: int) -> void
 	human.set_script(Player)
 	add_child(human)
 	human.health_changed.connect(update_health)
+	human.shield_changed.connect(update_shield)
 	human.setup(self, weapon, spawn_for(own_slot))
 	show_message("WAITING FOR OPPONENTS", 3.0)
 
@@ -28,13 +30,13 @@ func spawn_for(slot: int) -> Vector3:
 	var points := [Vector3(0, 1, 13), Vector3(0, 1, -13), Vector3(13, 1, 8), Vector3(-13, 1, -8)]
 	return points[clampi(slot, 0, 3)]
 
-func add_remote(id: int, avatar: int = 0, slot: int = 0) -> void:
+func add_remote(id: int, avatar: int = 0, slot: int = 0, weapon: String = "Pulse Rifle", helmet: bool = false) -> void:
 	if id == multiplayer.get_unique_id() or remotes.has(id):
 		return
 	var actor := CharacterBody3D.new()
 	actor.set_script(RemotePlayer)
 	add_child(actor)
-	actor.setup(self, id, avatar)
+	actor.setup(self, id, avatar, weapon, helmet)
 	actor.position = spawn_for(slot)
 	remotes[id] = actor
 	show_message("PLAYER JOINED THE ARENA", 2.0)
@@ -49,6 +51,15 @@ func move_remote(id: int, where: Vector3, yaw: float) -> void:
 	if remotes.has(id) and is_instance_valid(remotes[id]):
 		remotes[id].global_position = where
 		remotes[id].rotation.y = yaw
+
+func broadcast_shot(from: Vector3, to: Vector3) -> void:
+	controller.send_online_shot(from, to)
+
+func show_remote_shot(id: int, from: Vector3, to: Vector3) -> void:
+	remote_shots_seen += 1
+	if remotes.has(id):
+		remotes[id].show_fire()
+	spawn_pulse(from, to)
 
 func request_hit(id: int, amount: int) -> void:
 	controller.send_online_hit(id, amount)

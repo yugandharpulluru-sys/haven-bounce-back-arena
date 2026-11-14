@@ -25,3 +25,9 @@ Licence: CC0 1.0, as stated in the downloaded archive. Selected `.ogg` files are
 Sources: https://polyhaven.com/a/concrete_floor_02 and https://polyhaven.com/a/industrial_sunset_puresky
 
 Licence: CC0 1.0 under https://polyhaven.com/license. The floor colour and roughness maps and the 1K HDR sky are in `assets/polyhaven/`.
+
+## Orbitron font — The Orbitron Project Authors
+
+Source: https://github.com/google/fonts/tree/main/ofl/orbitron
+
+Licence: SIL Open Font License 1.1. The unmodified font and the full licence are in `assets/fonts/`.

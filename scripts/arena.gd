@@ -5,7 +5,7 @@ signal return_requested
 
 const Player = preload("res://scripts/player.gd")
 const Bot = preload("res://scripts/bot.gd")
-const MAPS := ["CORE COURTYARD", "TRANSIT STATION", "OVERGROWN GARDEN"]
+const MAPS := ["CORE COURTYARD", "TRANSIT STATION", "OVERGROWN GARDEN", "ARCHIVE VAULT", "SKYLINE YARD"]
 var human: CharacterBody3D
 var score := 0
 var time_left := 180.0
@@ -17,8 +17,12 @@ var hud_message: Label
 var hud_hit: Label
 var message_time := 0.0
 var hit_time := 0.0
-var colors := [Color("35d1e0"), Color("ffb659"), Color("90e290")]
+var colors := [Color("35d1e0"), Color("ffb659"), Color("90e290"), Color("c79af5"), Color("78b9ff")]
 var accent := Color("35d1e0")
+var avatar_index := 0
+var equipment := {}
+var hud_shield: Label
+var hud_bar: ProgressBar
 var bot_shot_sound: AudioStreamPlayer
 var pause_layer: CanvasLayer
 var menu_open := false
@@ -33,8 +37,16 @@ func start_match(map_index: int, difficulty: int, weapon: String) -> void:
 	human.set_script(Player)
 	add_child(human)
 	human.health_changed.connect(update_health)
+	human.shield_changed.connect(update_shield)
 	human.player_out.connect(func(): end_match(false, "All recovery lives were used. Try again."))
 	human.setup(self, weapon, Vector3(0, 1, 13))
+	human.apply_equipment(equipment)
+	for pickup_info in [["health", Vector3(-13, 0, 10)], ["shield", Vector3(13, 0, -12)], ["dash", Vector3(0, 0, -5)]]:
+		var pickup := Node3D.new()
+		pickup.set_script(load("res://scripts/pickup.gd"))
+		pickup.position = pickup_info[1]
+		add_child(pickup)
+		pickup.setup(pickup_info[0], human)
 	var bot_kind := 0
 	for point in [Vector3(-10, 1, -9), Vector3(10, 1, -9), Vector3(0, 1, -14), Vector3(13, 1, 1)]:
 		var bot := CharacterBody3D.new()
@@ -54,8 +66,8 @@ func build_environment(index: int) -> void:
 	environment.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
 	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = [Color("1b2940"), Color("101e30"), Color("253d37")][index]
-	sky_material.sky_horizon_color = [Color("78909a"), Color("a37862"), Color("819a82")][index]
+	sky_material.sky_top_color = [Color("1b2940"), Color("101e30"), Color("253d37"), Color("281e40"), Color("25354d")][index]
+	sky_material.sky_horizon_color = [Color("78909a"), Color("a37862"), Color("819a82"), Color("988aa2"), Color("a1bcd0")][index]
 	sky_material.ground_bottom_color = Color("131c24")
 	sky_material.ground_horizon_color = Color("53646b")
 	var panorama := PanoramaSkyMaterial.new()
@@ -113,21 +125,29 @@ func box(pos: Vector3, size: Vector3, color: Color, solid: bool = true, glow: fl
 		add_child(mesh)
 
 func build_arena(index: int) -> void:
-	var floor_color: Color = [Color("44535e"), Color("504a4a"), Color("485c52")][index]
-	var wall_color: Color = [Color("253645"), Color("34353b"), Color("2b403e")][index]
-	box(Vector3(0, -0.35, 0), Vector3(38, 0.7, 38), floor_color)
+	var floor_color: Color = [Color("44535e"), Color("504a4a"), Color("485c52"), Color("50465e"), Color("465366")][index]
+	var wall_color: Color = [Color("253645"), Color("34353b"), Color("2b403e"), Color("30283c"), Color("273b52")][index]
+	box(Vector3(0, -0.35, 0), Vector3(50, 0.7, 50), floor_color)
 	# A grid of fine seams creates a readable architectural surface.
-	for i in range(-4, 5):
-		box(Vector3(i * 4.0, 0.015, 0), Vector3(0.035, 0.02, 37), Color("243743"), false)
-		box(Vector3(0, 0.016, i * 4.0), Vector3(37, 0.02, 0.035), Color("243743"), false)
+	for i in range(-6, 7):
+		box(Vector3(i * 4.0, 0.015, 0), Vector3(0.035, 0.02, 49), Color("243743"), false)
+		box(Vector3(0, 0.016, i * 4.0), Vector3(49, 0.02, 0.035), Color("243743"), false)
 	for side in [-1, 1]:
-		box(Vector3(side * 19, 3, 0), Vector3(1, 6, 38), wall_color)
-		box(Vector3(0, 3, side * 19), Vector3(38, 6, 1), wall_color)
-		box(Vector3(side * 18.4, 3.7, 0), Vector3(0.08, 0.12, 37), accent, false, 1.4)
-		box(Vector3(0, 3.7, side * 18.4), Vector3(37, 0.12, 0.08), accent, false, 1.4)
-		for i in [-12, -4, 4, 12]:
-			box(Vector3(side * 18.2, 2, i), Vector3(0.4, 4, 0.65), Color("1b2933"))
-			box(Vector3(i, 2, side * 18.2), Vector3(0.65, 4, 0.4), Color("1b2933"))
+		box(Vector3(side * 25, 4, 0), Vector3(1, 8, 50), wall_color)
+		box(Vector3(0, 4, side * 25), Vector3(50, 8, 1), wall_color)
+		box(Vector3(side * 24.4, 3.7, 0), Vector3(0.08, 0.12, 49), accent, false, 1.4)
+		box(Vector3(0, 3.7, side * 24.4), Vector3(49, 0.12, 0.08), accent, false, 1.4)
+		for i in [-20, -12, -4, 4, 12, 20]:
+			box(Vector3(side * 24.2, 2, i), Vector3(0.4, 4, 0.65), Color("1b2933"))
+			box(Vector3(i, 2, side * 24.2), Vector3(0.65, 4, 0.4), Color("1b2933"))
+	# The distant skyline gives the arena depth without blocking gameplay.
+	for side in [-1, 1]:
+		for i in range(-2, 3):
+			var height := 11.0 + float((i + 2) % 3) * 3.0
+			var x := float(i) * 11.0
+			box(Vector3(x, height * 0.5 - 0.2, side * 31.0), Vector3(8, height, 5), wall_color.darkened(0.25), false)
+			for window_y in [9.0, 11.0]:
+				box(Vector3(x, window_y, side * 28.4), Vector3(5.5, 0.08, 0.08), accent.darkened(0.35), false, 0.8)
 	var cover := []
 	match index:
 		0:
@@ -136,6 +156,11 @@ func build_arena(index: int) -> void:
 			cover = [Vector3(-11, 0, -5), Vector3(11, 0, -5), Vector3(-5, 0, 5), Vector3(5, 0, 5), Vector3(0, 0, -11)]
 		2:
 			cover = [Vector3(-11, 0, 1), Vector3(11, 0, 1), Vector3(-5, 0, -8), Vector3(5, 0, -8), Vector3(0, 0, 6)]
+		3:
+			cover = [Vector3(-12, 0, -7), Vector3(12, 0, -7), Vector3(-6, 0, 5), Vector3(6, 0, 5), Vector3(0, 0, -1)]
+		4:
+			cover = [Vector3(-12, 0, 6), Vector3(12, 0, 6), Vector3(-6, 0, -6), Vector3(6, 0, -6), Vector3(0, 0, 1)]
+	cover.append_array([Vector3(-19, 0, -3), Vector3(19, 0, 3)])
 	for point in cover:
 		box(point + Vector3(0, 1, 0), Vector3(3.0, 2.0, 2.0), wall_color.lightened(0.12))
 		box(point + Vector3(0, 2.04, 0), Vector3(3.1, 0.08, 2.1), accent.darkened(0.35), false, 0.5)
@@ -168,6 +193,15 @@ func build_arena(index: int) -> void:
 			box(Vector3(x, 0.03, 0), Vector3(0.12, 0.03, 36), accent, false, 0.8)
 		for z in [-12, 0, 12]:
 			box(Vector3(0, 5.4, z), Vector3(30, 0.25, 0.6), wall_color)
+	elif index == 3:
+		for x in [-14, -7, 7, 14]:
+			box(Vector3(x, 2.2, -16), Vector3(1.6, 4.4, 1.0), wall_color.lightened(0.2))
+			box(Vector3(x, 2.2, -15.4), Vector3(1.2, 2.6, 0.08), accent, false, 1.1)
+	elif index == 4:
+		for x in [-15, 15]:
+			box(Vector3(x, 4.4, 0), Vector3(1.0, 0.3, 35), wall_color.lightened(0.1))
+			for z in [-12, 0, 12]:
+				box(Vector3(x, 2.3, z), Vector3(0.7, 4.5, 0.7), wall_color)
 	if index == 2:
 		for x in [-15, -8, 8, 15]:
 			box(Vector3(x, 0.3, -17), Vector3(2.1, 0.6, 1), Color("344b35"))
@@ -198,12 +232,37 @@ func build_hud(map_title: String, weapon: String) -> void:
 	hud_clock.offset_left = -30
 	hud_clock.offset_top = 19
 	root.add_child(hud_clock)
-	hud_health = hud_label("HEALTH 100   ·   LIVES 3", 20, Color.WHITE)
+	hud_health = hud_label("✚  HEALTH 100   ·   LIVES 3", 20, Color.WHITE)
 	hud_health.anchor_top = 1
 	hud_health.anchor_bottom = 1
 	hud_health.offset_left = 24
 	hud_health.offset_top = -55
 	root.add_child(hud_health)
+	hud_bar = ProgressBar.new()
+	hud_bar.anchor_top = 1
+	hud_bar.anchor_bottom = 1
+	hud_bar.offset_left = 25
+	hud_bar.offset_top = -21
+	hud_bar.offset_right = 250
+	hud_bar.offset_bottom = -12
+	hud_bar.show_percentage = false
+	hud_bar.max_value = 100
+	hud_bar.value = 100
+	var bar_bg := StyleBoxFlat.new()
+	bar_bg.bg_color = Color("263b49")
+	bar_bg.set_corner_radius_all(5)
+	var bar_fill := StyleBoxFlat.new()
+	bar_fill.bg_color = Color("55e3ba")
+	bar_fill.set_corner_radius_all(5)
+	hud_bar.add_theme_stylebox_override("background", bar_bg)
+	hud_bar.add_theme_stylebox_override("fill", bar_fill)
+	root.add_child(hud_bar)
+	hud_shield = hud_label("⬡  SHIELD 0", 15, Color("9ed5ff"))
+	hud_shield.anchor_top = 1
+	hud_shield.anchor_bottom = 1
+	hud_shield.offset_left = 270
+	hud_shield.offset_top = -42
+	root.add_child(hud_shield)
 	var gun_label := hud_label(weapon.to_upper() + "  /  Q DASH", 16, Color("9ce4e4"))
 	gun_label.anchor_left = 1
 	gun_label.anchor_right = 1
@@ -272,8 +331,42 @@ func _process(delta: float) -> void:
 		hud_hit.visible = false
 
 func update_health(health: int, lives: int) -> void:
-	hud_health.text = "HEALTH %d   ·   LIVES %d" % [health, lives]
+	hud_health.text = "✚  HEALTH %d   ·   LIVES %d" % [health, lives]
+	if is_instance_valid(hud_bar): hud_bar.value = health
 	hud_health.add_theme_color_override("font_color", Color("ff807c") if health < 35 else Color.WHITE)
+
+func update_shield(value: int) -> void:
+	if is_instance_valid(hud_shield):
+		hud_shield.text = "⬡  SHIELD %d" % value
+
+func spawn_pulse(from: Vector3, to: Vector3, color: Color = Color("6eeaff")) -> void:
+	var projectile := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.07
+	mesh.height = 0.14
+	projectile.mesh = mesh
+	projectile.material_override = material(color, 0.0, 2.2)
+	projectile.position = to_local(from)
+	add_child(projectile)
+	projectile.add_to_group("shot_effects")
+	var duration := clampf(from.distance_to(to) / 90.0, 0.07, 0.45)
+	var tween := create_tween()
+	tween.tween_property(projectile, "position", to_local(to), duration)
+	tween.tween_callback(func(): spawn_impact(to, color))
+	tween.tween_callback(projectile.queue_free)
+
+func spawn_impact(where: Vector3, color: Color) -> void:
+	var flash := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.15
+	sphere.height = 0.3
+	flash.mesh = sphere
+	flash.material_override = material(color, 0.0, 3.0)
+	flash.position = to_local(where)
+	add_child(flash)
+	var effect := create_tween()
+	effect.tween_property(flash, "scale", Vector3.ZERO, 0.18)
+	effect.tween_callback(flash.queue_free)
 
 func bot_defeated(_pos: Vector3) -> void:
 	if ended:
@@ -285,18 +378,7 @@ func bot_defeated(_pos: Vector3) -> void:
 		end_match(true, "Haven remembers a little more because of you.")
 
 func bot_shot(from: Vector3, to: Vector3) -> void:
-	var immediate := ImmediateMesh.new()
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color("ff846e")
-	immediate.surface_begin(Mesh.PRIMITIVE_LINES, mat)
-	immediate.surface_add_vertex(from)
-	immediate.surface_add_vertex(to)
-	immediate.surface_end()
-	var line := MeshInstance3D.new()
-	line.mesh = immediate
-	add_child(line)
-	get_tree().create_timer(0.10).timeout.connect(line.queue_free)
+	spawn_pulse(from, to, Color("ff846e"))
 
 func toggle_pause() -> void:
 	if menu_open:

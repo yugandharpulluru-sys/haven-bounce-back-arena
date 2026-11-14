@@ -6,6 +6,13 @@ signal player_out
 var arena: Node3D
 var weapon := "Pulse Rifle"
 var camera: Camera3D
+var camera_pivot: SpringArm3D
+var character: Node3D
+var shield := 0
+var max_shield := 50
+var has_armor := false
+var super_dash := false
+signal shield_changed(value: int)
 var health := 100
 var lives := 3
 var fire_timer := 0.0
@@ -28,19 +35,21 @@ func setup(game: Node3D, gun: String, spawn: Vector3) -> void:
 	collider.shape = shape
 	collider.position.y = 0.9
 	add_child(collider)
+	character = Node3D.new()
+	character.set_script(load("res://scripts/character_visual.gd"))
+	add_child(character)
+	var avatar: int = game.get("avatar_index") if game.get("avatar_index") != null else 0
+	var helmet_on: bool = bool(game.get("equipment").get("headgear", false)) if game.get("equipment") is Dictionary else false
+	character.setup(avatar, weapon, helmet_on)
+	camera_pivot = SpringArm3D.new()
+	camera_pivot.position = Vector3(0.70, 1.75, 0)
+	camera_pivot.spring_length = 4.2
+	camera_pivot.add_excluded_object(get_rid())
+	add_child(camera_pivot)
 	camera = Camera3D.new()
-	camera.position = Vector3(0, 1.57, 0)
-	camera.fov = 78
+	camera.fov = 72
 	camera.current = true
-	add_child(camera)
-	var gun_asset := "Gun_Rifle" if weapon == "Pulse Rifle" else ("Gun_Pistol" if weapon == "Scatter Blaster" else "Gun_Sniper")
-	var model = load("res://assets/quaternius/" + gun_asset + ".gltf")
-	if model:
-		var gun_model = model.instantiate()
-		gun_model.position = Vector3(0.33, -0.31, -0.58)
-		gun_model.rotation = Vector3(0, PI, 0)
-		gun_model.scale = Vector3.ONE * 0.45
-		camera.add_child(gun_model)
+	camera_pivot.add_child(camera)
 	sound = AudioStreamPlayer.new()
 	sound.stream = load("res://assets/audio/laserLarge_000.ogg")
 	sound.volume_db = -12
@@ -53,16 +62,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		rotate_y(-event.relative.x * mouse_sensitivity)
-		camera.rotation.x = clampf(camera.rotation.x - event.relative.y * mouse_sensitivity, -1.25, 1.25)
+		camera_pivot.rotation.x = clampf(camera_pivot.rotation.x - event.relative.y * mouse_sensitivity, -0.65, 0.70)
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			arena.toggle_pause()
 		elif event.keycode == KEY_Q and dash_cooldown <= 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			var v := movement_input()
 			dash_direction = v if v.length() > 0.1 else -global_basis.z
-			dash_timer = 0.20
-			dash_cooldown = 3.0
-			arena.show_message("REBOUND DASH", 0.7)
+			dash_timer = 0.32 if super_dash else 0.20
+			dash_cooldown = 2.2 if super_dash else 3.0
+			arena.show_message("SUPER DASH" if super_dash else "REBOUND DASH", 0.7)
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -87,7 +96,7 @@ func _physics_process(delta: float) -> void:
 	var speed := 7.0
 	if dash_timer > 0:
 		dir = dash_direction
-		speed = 17.0
+		speed = 23.0 if super_dash else 17.0
 	velocity.x = move_toward(velocity.x, dir.x * speed, 35.0 * delta)
 	velocity.z = move_toward(velocity.z, dir.z * speed, 35.0 * delta)
 	if not is_on_floor():
@@ -95,6 +104,8 @@ func _physics_process(delta: float) -> void:
 	elif Input.is_key_pressed(KEY_SPACE) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		velocity.y = 8.0
 	move_and_slide()
+	if is_instance_valid(character):
+		character.animate_motion(delta, Vector2(velocity.x, velocity.z).length() / 7.0)
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and fire_timer <= 0:
 		fire()
 	if position.y < -10:
@@ -120,12 +131,18 @@ func fire() -> void:
 			fire_timer = 0.20
 	sound.pitch_scale = randf_range(0.94, 1.06)
 	sound.play()
+	character.fire_animation()
 	for i in range(pellets):
 		var direction := (-camera.global_basis.z + camera.global_basis.x * randf_range(-spread, spread) + camera.global_basis.y * randf_range(-spread, spread)).normalized()
 		var from := camera.global_position
 		var query := PhysicsRayQueryParameters3D.create(from, from + direction * reach)
 		query.exclude = [get_rid()]
 		var hit := get_world_3d().direct_space_state.intersect_ray(query)
+		var destination: Vector3 = hit.get("position", from + direction * reach)
+		if i == 0:
+			arena.spawn_pulse(character.muzzle_position(), destination)
+			if arena.has_method("broadcast_shot"):
+				arena.broadcast_shot(character.muzzle_position(), destination)
 		if not hit.is_empty():
 			var target = hit.get("collider")
 			if is_instance_valid(target) and target.has_method("take_damage"):
@@ -135,6 +152,13 @@ func fire() -> void:
 func take_damage(amount: int) -> void:
 	if not can_act or invulnerability > 0:
 		return
+	if has_armor:
+		amount = maxi(1, ceili(amount * 0.75))
+	if shield > 0:
+		var absorbed := mini(shield, amount)
+		shield -= absorbed
+		amount -= absorbed
+		shield_changed.emit(shield)
 	health -= amount
 	if health <= 0:
 		lives -= 1
@@ -150,3 +174,26 @@ func take_damage(amount: int) -> void:
 		velocity = Vector3.ZERO
 		arena.show_message("REBOOTED  ·  %d LIVES LEFT" % lives, 1.8)
 	health_changed.emit(health, lives)
+
+func apply_equipment(loadout: Dictionary) -> void:
+	has_armor = bool(loadout.get("armor", false))
+	super_dash = bool(loadout.get("dash", false))
+	shield = 50 if bool(loadout.get("shield", false)) else 0
+	shield_changed.emit(shield)
+
+func collect_powerup(kind: String) -> bool:
+	if kind == "health" and health < 100:
+		health = mini(100, health + 35)
+		health_changed.emit(health, lives)
+		arena.show_message("HEALTH RESTORED +35", 1.1)
+		return true
+	if kind == "shield" and shield < max_shield:
+		shield = mini(max_shield, shield + 25)
+		shield_changed.emit(shield)
+		arena.show_message("SHIELD RECHARGED +25", 1.1)
+		return true
+	if kind == "dash" and dash_cooldown > 0:
+		dash_cooldown = 0
+		arena.show_message("DASH READY", 1.1)
+		return true
+	return false

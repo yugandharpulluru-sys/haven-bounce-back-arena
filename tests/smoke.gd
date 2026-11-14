@@ -14,18 +14,45 @@ func check(condition: bool, message: String) -> void:
 
 func run() -> void:
 	var scene = load("res://scenes/main.tscn").instantiate()
-	root.add_child(scene)
 	scene.save_path = "user://haven_smoke_test.cfg"
+	root.add_child(scene)
 	scene.coins = 0
 	scene.wins = 0
 	scene.owned = ["Pulse Rifle"]
 	scene.chosen_weapon = "Pulse Rifle"
 	await process_frame
 	check(is_instance_valid(scene.ui), "opening screen loads")
+	scene.set_profile("Test Runner")
+	check(scene.profile_choice and scene.profile_name == "Test Runner" and scene.valid_uid(scene.player_uid), "local player name and ID are saved")
+	var generated := {}
+	for sample in range(100): generated[scene.generate_uid()] = true
+	check(generated.size() == 100, "generated IDs are distinct in sample")
+	var id_one: String = scene.generate_uid()
+	var id_two: String = scene.generate_uid()
+	scene.show_friend_editor({})
+	scene.friend_name_input.text = "Sam"
+	scene.friend_uid_input.text = id_one
+	scene.save_friend()
+	scene.show_friend_editor({})
+	scene.friend_name_input.text = "Sam"
+	scene.friend_uid_input.text = id_two
+	scene.save_friend()
+	check(scene.friend_index(id_one) >= 0 and scene.friend_index(id_two) >= 0, "friends can share a username with different IDs")
+	scene.refresh_friends("sam")
+	await process_frame
+	check(scene.friend_results.get_child_count() == 2, "name search returns both matching friends")
+	scene.friend_query.text = id_one
+	scene.refresh_friends(id_one)
+	await process_frame
+	check(scene.friend_results.get_child_count() == 1, "friend search finds an exact ID")
+	scene.show_help()
+	check(is_instance_valid(scene.ui), "help and conduct screen loads")
+	scene.show_echo_dialogue(2)
+	check(is_instance_valid(scene.menu_preview), "Echo dialogue has an animated 3D portrait")
 	scene.show_menu()
 	scene.show_setup()
 	check(is_instance_valid(scene.ui), "match setup loads")
-	for map_id in range(3):
+	for map_id in range(5):
 		scene.chosen_map = map_id
 		scene.start_match()
 		await process_frame
@@ -40,6 +67,16 @@ func run() -> void:
 		check(bots.size() >= 4, "map %d spawns four bots" % map_id)
 		if map_id == 0 and bots.size() >= 4:
 			var game = scene.arena
+			check(is_instance_valid(game.human.character) and is_instance_valid(game.human.character.skeleton), "third-person fighter and rig load")
+			var character = game.human.character
+			var head_found := false
+			for mesh in character.find_children("*", "MeshInstance3D", true, false):
+				if str(mesh.name).begins_with("Head") and mesh.get_aabb().position.y > 1.5:
+					head_found = true
+			check(head_found, "fighter head is aligned with body")
+			character.animate_motion(0.12, 1.0)
+			var leg: int = character.bone_indices["thigh.L"]
+			check(not character.skeleton.get_bone_pose_rotation(leg).is_equal_approx(character.rest_rotations["thigh.L"]), "character legs animate when moving")
 			var before_move: Vector3 = game.human.position
 			var key := InputEventKey.new()
 			key.keycode = KEY_W
@@ -52,10 +89,11 @@ func run() -> void:
 			Input.parse_input_event(key)
 			check(game.human.position.distance_to(before_move) > 0.1, "movement input changes player position")
 			var bot = bots[-1]
-			bot.global_position = game.human.global_position + Vector3(0, 0, -4)
+			bot.global_position = game.human.global_position + Vector3(0.7, 0, -4)
 			await physics_frame
 			for shot in range(4):
 				game.human.fire()
+			check(not get_nodes_in_group("shot_effects").is_empty(), "weapon creates visible 3D pulse")
 			check(game.score == 1, "aimed shots damage and defeat a bot")
 			var before: int = scene.coins
 			for i in range(7): game.bot_defeated(Vector3.ZERO)
@@ -74,11 +112,31 @@ func run() -> void:
 	await process_frame
 	check(scene.story_unlocked == 1, "story victory unlocks next mission")
 	scene.coins = 1000
+	scene.select_gear("Kinetic Shield")
+	scene.select_gear("Armor Plate")
+	scene.select_gear("Tactical Headgear")
+	scene.select_gear("Super Dash")
+	check(scene.equipped["shield"] and scene.equipped["armor"] and scene.equipped["headgear"] and scene.equipped["dash"], "market purchases and equips all gear")
+	scene.chosen_map = 0
+	scene.start_match()
+	await process_frame
+	var fighter = scene.arena.human
+	check(fighter.shield == 50 and fighter.has_armor and fighter.super_dash, "equipped gear affects the match")
+	fighter.invulnerability = 0
+	fighter.take_damage(40)
+	check(fighter.shield == 20 and fighter.health == 100, "armor and shield absorb incoming damage")
+	fighter.health = 50
+	check(fighter.collect_powerup("health") and fighter.health == 85, "health pickup restores health")
+	fighter.shield = 0
+	check(fighter.collect_powerup("shield") and fighter.shield == 25, "shield pickup recharges shield")
+	fighter.dash_cooldown = 2
+	check(fighter.collect_powerup("dash") and fighter.dash_cooldown == 0, "dash pickup resets cooldown")
+	scene.coins = 1000
 	scene.select_weapon("Scatter Blaster")
 	check(scene.chosen_weapon == "Scatter Blaster" and "Scatter Blaster" in scene.owned, "weapon purchase equips and unlocks")
 	scene.chosen_weapon = "Pulse Rifle"
 	scene.load_progress()
-	check(scene.chosen_weapon == "Scatter Blaster", "progress persists to disk")
+	check(scene.chosen_weapon == "Scatter Blaster" and scene.equipped["shield"] and scene.profile_name == "Test Runner" and scene.valid_uid(scene.player_uid) and scene.friend_index(id_one) >= 0, "progress, gear, ID and friends persist to disk")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(scene.save_path))
 	print("SMOKE TEST ", "FAILED" if failed else "PASSED")
 	quit(1 if failed else 0)
