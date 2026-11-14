@@ -1,6 +1,6 @@
 # Engine decision
 
-Choose **Godot 4.6.3 stable, standard edition**, for the first prototype. The user already knows Godot and this version is installed in the development environment. Using the same version across the team reduces compatibility surprises. The game and the project file have not yet been created.
+Choose **Godot 4.6.3 stable, standard edition**, for the first prototype. The user already knows Godot and this version is installed in the development environment. Using the same version across the team reduces compatibility surprises. This decision was recorded before implementation; the current project and its status are described in the root README.
 
 Godot is MIT licensed, supports 3D navigation and a high-level multiplayer API, and recommends glTF 2.0 for 3D imports. This suits a code-driven arena shooter and the researched assets. Online lobbies, hosting and synchronization still require implementation and testing; the engine does not automatically supply a production multiplayer service.
 
