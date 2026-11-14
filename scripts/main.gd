@@ -834,7 +834,9 @@ func show_help() -> void:
 		"RESPECT: Be kind. No harassment, hate, threats, or bullying.",
 		"FAIR PLAY: Do not cheat, exploit bugs, impersonate others, or disrupt matches.",
 		"PRIVACY: Do not share someone else's personal information or account details.",
-		"FRIENDS: IDs and contacts are stored locally. Search covers saved and recent players."
+		"FRIENDS: IDs and contacts are stored locally. Search covers saved and recent players.",
+		"SUPPORT: Charvik Reddy Pulluru",
+		"EMAIL: charvikreddypulluru@giis.edu.sg   |   PHONE: 85699182"
 	]:
 		var text_line := make_label(line, 17, Color("d6e9ef"))
 		text_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
