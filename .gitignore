@@ -1,0 +1,3 @@
+# Downloaded research packs stay local until the team chooses assets.
+/research-assets/
+.godot/
