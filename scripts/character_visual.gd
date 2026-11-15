@@ -10,6 +10,7 @@ var action_time := 0.0
 var action_name := ""
 var last_motion := ""
 var avatar_file := ""
+var preview_idle := false
 
 func setup(avatar: int, weapon: String, wear_helmet: bool = false) -> void:
 	var names := ["survivor", "scout", "runner"]
@@ -17,7 +18,7 @@ func setup(avatar: int, weapon: String, wear_helmet: bool = false) -> void:
 	var packed = load("res://assets/humans/" + avatar_file + ".glb")
 	if packed:
 		var model = packed.instantiate()
-		model.scale = Vector3.ONE * 0.60
+		model.scale = Vector3.ONE
 		model.rotation.y = PI
 		add_child(model)
 		# The source characters use a placeholder dark-grey skin material.
@@ -34,7 +35,7 @@ func setup(avatar: int, weapon: String, wear_helmet: bool = false) -> void:
 		var players = model.find_children("*", "AnimationPlayer", true, false)
 		if not players.is_empty():
 			animator = players[0]
-			for name in ["Idle", "Walk", "Run", "Walk_Carry", "Run_Carry"]:
+			for name in ["Idle", "ArmedIdle", "Walk", "Run", "Walk_Carry", "Run_Carry"]:
 				if animator.has_animation(name): animator.get_animation(name).loop_mode = Animation.LOOP_LINEAR
 			play_motion("Idle")
 	var asset := "Gun_Rifle" if weapon == "Pulse Rifle" else ("Gun_Pistol" if weapon == "Scatter Blaster" else "Gun_Sniper")
@@ -51,7 +52,7 @@ func setup(avatar: int, weapon: String, wear_helmet: bool = false) -> void:
 	visor.radius = 0.17
 	visor.height = 0.17
 	helmet.mesh = visor
-	helmet.position = Vector3(0, 1.87, 0)
+	helmet.position = Vector3(0, 1.72, 0)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color("53e5ee")
 	mat.metallic = 0.65
@@ -75,9 +76,9 @@ func animate_motion(delta: float, movement: float, grounded: bool = true) -> voi
 	elif movement > 0.18:
 		play_motion("Run_Carry" if movement > 0.9 else "Walk_Carry")
 	else:
-		play_motion("Idle")
+		play_motion("Idle" if preview_idle else "ArmedIdle")
 	if is_instance_valid(gun_model) and is_instance_valid(skeleton):
-		var hand_id := skeleton.find_bone("Fist.R")
+		var hand_id := skeleton.find_bone("hand_r")
 		if hand_id >= 0:
 			var hand_transform: Transform3D = skeleton.global_transform * skeleton.get_bone_global_pose(hand_id)
 			gun_model.position = to_local(hand_transform.origin) + Vector3(0.0, 0.0, -0.12 + recoil * 0.11)

@@ -74,7 +74,14 @@ func run() -> void:
 		await physics_frame
 		check(is_instance_valid(scene.arena) and is_instance_valid(scene.arena.human), "map %d and player load" % map_id)
 		if map_id == 1: check(scene.arena.ground_texture.ends_with("dry_diff.jpg"), "desert uses dry ground")
-		if map_id == 2: check(scene.arena.ground_texture.ends_with("grass_diff.jpg"), "garden uses grass ground")
+		if map_id == 2:
+			check(scene.arena.ground_texture.ends_with("grass_diff.jpg"), "garden uses grass ground")
+			var landscapes := get_nodes_in_group("living_landscapes")
+			var living = landscapes[-1]
+			check(living.animals.size() == 3 and living.get_child_count() > 100, "forest contains premade vegetation and three animated foxes")
+			var before_wildlife: Vector3 = living.animals[0].position
+			living._process(1.0)
+			check(living.animals[0].position.distance_to(before_wildlife) > 0.1, "forest wildlife moves along its route")
 		if map_id == 0:
 			scene.arena.toggle_pause()
 			check(paused, "offline match pauses")

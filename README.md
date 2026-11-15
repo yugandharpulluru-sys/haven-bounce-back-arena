@@ -50,3 +50,11 @@ For a private same-network match, one player chooses **Online Multiplayer → Ho
 See [asset credits](docs/ASSET_CREDITS.md) for models, sounds, textures, skies and fonts. The historical design documents may describe earlier ideas rather than the current game.
 
 After importing once, run `godot --headless --path . --script res://tests/smoke.gd` to exercise match flow, movement, actions, maps, the market, pickups, survival and resets. `tests/network_peer.gd` checks host/client communication on one machine; it is not a two-device internet test.
+
+### Environment quality update
+
+The forest and desert now use premade Poly Haven scanned assets rather than sphere trees and primitive cover. The forest includes wind-driven trees, ferns and grass plus three foxes with a native walking animation. The desert has rocky escarpments, cracked ground and ribbed cacti. Natural arena boundaries are concealed behind scenery; the combat area remains 50 metres wide. The original home-page design is retained.
+
+Human fighters now use Quaternius Universal Base Characters with detailed faces, hairstyles, adult proportions, field-suit material variants and the matching Universal Animation Library. These replace the earlier cartoon models. The levels are assembled from licensed assets, not imported complete premade maps. Attribution and modification details are in `docs/ASSET_CREDITS.md`.
+
+The richer scenery uses more GPU memory and geometry. A dedicated GPU is recommended; performance on your machine needs checking. Four-sample MSAA is enabled; reduce `Rendering > Anti Aliasing > Quality > MSAA 3D` in Project Settings if needed. Existing controls, survival, purchases and reset-on-launch behaviour are unchanged.

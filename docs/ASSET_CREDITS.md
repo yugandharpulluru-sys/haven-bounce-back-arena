@@ -1,6 +1,6 @@
 # Asset credits
 
-The following resources are included in the game. Authors and source pages are recorded even where attribution is optional. All listed sources state CC0. This does not override your game jam's own rules; the team should check those separately.
+The following resources are included in the game. Authors and source pages are recorded even where attribution is optional. Licences are listed below; most assets are CC0, while the animated fox includes CC BY 4.0 contributions. This does not override your game jam's own rules; the team should check those separately.
 
 ## Sci-Fi Essentials Kit — Quaternius
 
@@ -49,3 +49,11 @@ Licence: CC0 1.0 under https://polyhaven.com/license. The downloaded 1K textures
 Source: https://github.com/google/fonts/tree/main/ofl/outfit
 
 Licence: SIL Open Font License 1.1. The font and licence are in `assets/fonts/`.
+
+## November environment and character replacement
+
+- **Universal Base Characters (Standard)** by Quaternius: https://quaternius.itch.io/universal-base-characters — CC0. Premade male/female bodies, faces, hair and suit textures replace the earlier oversized-head characters. Selected hairstyles and matching animation clips assembled in Blender; textures resized to 1K and field-suit materials assigned to body surfaces. Source licence: `assets/licenses/Quaternius-Base-Characters.txt`.
+- **Universal Animation Library (Standard)** by Quaternius: https://quaternius.itch.io/universal-animation-library — CC0. Idle, walking, jogging, sprinting, jumping, rolling and pistol animations; clips renamed to game actions. Licence included in `assets/licenses/Quaternius-Animation-Library.txt`.
+- **Poly Haven scanned models**, CC0: https://polyhaven.com/a/tree_small_02, https://polyhaven.com/a/rock_07, https://polyhaven.com/a/fern_02, https://polyhaven.com/a/grass_medium_01. Geometry simplified for real-time use, exported to GLB with original 1K PBR textures; foliage wind added in Godot. https://polyhaven.com/license
+- **Fox**: model by PixelMannen (CC0); rig and animation by tomkranis (CC BY 4.0); glTF conversion by AsoboStudio and scurest (CC BY 4.0). https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox . Source attribution preserved in `assets/licenses/Fox-attribution.md`. Scaled and used with its Walk animation. https://creativecommons.org/licenses/by/4.0/
+- Arena layouts and ribbed cactus geometry are authored for this project. These are assembled environments using premade assets, not downloaded complete maps.

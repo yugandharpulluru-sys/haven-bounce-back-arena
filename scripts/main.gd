@@ -235,6 +235,7 @@ func add_portrait(kind: String) -> void:
 		menu_preview.set_script(load("res://scripts/character_visual.gd"))
 		world.add_child(menu_preview)
 		menu_preview.setup(chosen_avatar, chosen_weapon, bool(equipped.get("headgear", false)))
+		menu_preview.preview_idle = true
 		menu_preview.rotation.y = PI
 	var cam := Camera3D.new()
 	cam.position = Vector3(0, 1.2, 3.1)

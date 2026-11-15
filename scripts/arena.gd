@@ -80,23 +80,27 @@ func build_environment(index: int) -> void:
 	environment.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
 	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = [Color("1b2940"), Color("101e30"), Color("253d37"), Color("281e40"), Color("25354d")][index]
-	sky_material.sky_horizon_color = [Color("78909a"), Color("a37862"), Color("819a82"), Color("988aa2"), Color("a1bcd0")][index]
+	sky_material.sky_top_color = [Color("1b2940"), Color("101e30"), Color("497788"), Color("281e40"), Color("25354d")][index]
+	sky_material.sky_horizon_color = [Color("78909a"), Color("a37862"), Color("b3c5bf"), Color("988aa2"), Color("a1bcd0")][index]
 	sky_material.ground_bottom_color = Color("131c24")
 	sky_material.ground_horizon_color = Color("53646b")
 	var panorama := PanoramaSkyMaterial.new()
 	var skies := ["sunset.hdr", "desert_sky.hdr", "grass_sky.hdr", "sunset.hdr", "sunset.hdr"]
 	panorama.panorama = load("res://assets/polyhaven/" + skies[index])
-	sky.sky_material = panorama
+	sky.sky_material = sky_material if index == 2 else panorama
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color("c0cbb8")
-	environment.ambient_light_energy = 0.55
+	environment.ambient_light_energy = 0.42
+	environment.fog_enabled = index == 1 or index == 2
+	environment.fog_light_color = Color("d1b48d") if index == 1 else Color("9aafa1")
+	environment.fog_density = 0.0015 if index == 1 else 0.002
+	environment.fog_sky_affect = 0.35
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.environment = environment
 	add_child(env)
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50, -30, 0)
+	sun.rotation_degrees = Vector3(-32, -38, 0)
 	sun.light_color = Color("fff0d6")
 	sun.light_energy = 1.05
 	sun.shadow_enabled = true
@@ -120,7 +124,7 @@ func box(pos: Vector3, size: Vector3, color: Color, solid: bool = true, glow: fl
 	mesh.mesh = shape
 	var surface := material(color, 0.35, glow)
 	if size.x > 30 and size.z > 30 and size.y < 1:
-		surface.albedo_color = (Color("799a64") if ground_texture.ends_with("grass_diff.jpg") else Color("bfa783")) if natural_ground else color.lightened(0.45)
+		surface.albedo_color = (Color("88917a") if ground_texture.ends_with("grass_diff.jpg") else Color("bfa783")) if natural_ground else color.lightened(0.45)
 		surface.albedo_texture = load(ground_texture)
 		if natural_ground:
 			surface.metallic = 0.0
@@ -134,6 +138,7 @@ func box(pos: Vector3, size: Vector3, color: Color, solid: bool = true, glow: fl
 		body.position = pos
 		add_child(body)
 		body.add_child(mesh)
+		if natural_ground and size.y == 3.0 and (size.x == 50 or size.z == 50): mesh.visible = false
 		var collision := CollisionShape3D.new()
 		var shape_collision := BoxShape3D.new()
 		shape_collision.size = size
@@ -184,20 +189,11 @@ func build_arena(index: int) -> void:
 		else:
 			box(point + Vector3(0, 1, 0), Vector3(3.0, 2.0, 2.0), wall_color.lightened(0.12))
 			box(point + Vector3(0, 2.04, 0), Vector3(3.1, 0.08, 2.1), accent.darkened(0.35), false, 0.5)
-	if index == 1:
-		# Stone ruins and sandstone outcrops give the desert a distinct silhouette.
-		for x in [-18, -12, 12, 18]:
-			box(Vector3(x, 2.4, -21), Vector3(1.2, 4.8, 1.2), Color("c5a77d"))
-			add_boulder(Vector3(x, 0, 21), Color("bd9a70"), Vector3(2.2, 1.4, 1.8))
-		box(Vector3(-15, 4.9, -21), Vector3(7, 0.5, 1.4), Color("b39370"))
-		box(Vector3(15, 4.9, -21), Vector3(7, 0.5, 1.4), Color("b39370"))
-	elif index == 2:
-		for x in [-21, -14, 0, 14, 21]:
-			add_tree(Vector3(x, 0, -22))
-			add_tree(Vector3(x, 0, 22))
-		for z in [-14, 0, 14]:
-			add_tree(Vector3(-22, 0, z))
-			add_tree(Vector3(22, 0, z))
+	if natural_ground:
+		var landscape := Node3D.new()
+		landscape.set_script(preload("res://scripts/living_landscape.gd"))
+		add_child(landscape)
+		landscape.build(index == 2)
 	elif index == 0:
 		box(Vector3(0, 4, -18), Vector3(5, 8, 1), wall_color.darkened(0.2))
 		box(Vector3(0, 4.8, -17.4), Vector3(0.28, 5, 0.08), accent, false, 2.0)
@@ -219,17 +215,22 @@ func add_boulder(point: Vector3, color: Color, size: Vector3) -> void:
 	var body := StaticBody3D.new()
 	body.position = point + Vector3(0, size.y * 0.75, 0)
 	add_child(body)
-	var mesh := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 1
-	sphere.height = 2
-	sphere.radial_segments = 8
-	sphere.rings = 5
-	mesh.mesh = sphere
-	mesh.scale = size
-	mesh.rotation.y = point.x * 0.11
-	mesh.material_override = material(color.darkened(0.25))
-	body.add_child(mesh)
+	var rock: Node3D = load("res://assets/nature/rock_07.glb").instantiate()
+	body.add_child(rock)
+	var bounds := AABB()
+	var first := true
+	for mesh in rock.find_children("*", "MeshInstance3D", true, false):
+		var a: AABB = rock.global_transform.affine_inverse() * mesh.global_transform * mesh.get_aabb()
+		bounds = a if first else bounds.merge(a)
+		first = false
+		for surface in range(mesh.mesh.get_surface_count()):
+			var matte: StandardMaterial3D = mesh.get_active_material(surface).duplicate()
+			matte.metallic = 0.0
+			matte.roughness = 0.95
+			matte.roughness_texture = null
+			mesh.set_surface_override_material(surface, matte)
+	rock.scale = size * 1.5 / bounds.size
+	rock.position = -bounds.get_center() * rock.scale
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = size * 1.5
