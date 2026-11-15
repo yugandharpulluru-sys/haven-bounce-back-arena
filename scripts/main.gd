@@ -115,8 +115,8 @@ func create_menu_root() -> void:
 	header.offset_bottom = 58
 	header.add_theme_constant_override("separation",18)
 	ui.add_child(header)
-	header.add_child(make_label("HAVEN",24,MenuTheme.TEXT))
-	header.add_child(make_label("/  BOUNCE BACK",14,MenuTheme.MUTED))
+	header.add_child(make_label("THE LAST",24,MenuTheme.TEXT))
+	header.add_child(make_label("/  BOUNCE",14,MenuTheme.MUTED))
 	var gap := Control.new()
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(gap)
@@ -278,8 +278,8 @@ func menu_row(parent: Node, title: String, action: Callable) -> Button:
 
 func show_profile_choice() -> void:
 	var col := landing_shell()
-	col.add_child(make_label("HAVEN",96,MenuTheme.TEXT))
-	col.add_child(make_label("BOUNCE BACK",22,MenuTheme.ACCENT))
+	col.add_child(make_label("THE LAST",72,MenuTheme.TEXT))
+	col.add_child(make_label("BOUNCE",32,MenuTheme.ACCENT))
 	var description := make_label("Your next match starts here.",18,MenuTheme.MUTED)
 	col.add_child(description)
 	var gap := Control.new()
