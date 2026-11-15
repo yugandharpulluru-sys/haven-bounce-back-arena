@@ -7,13 +7,13 @@ Hostile AI has taken over Haven. As the last known human survivor, fight through
 1. Download [Godot 4.6.3 Standard](https://godotengine.org/download/archive/4.6.3-stable/).
 2. On GitHub, choose **Code → Download ZIP** and extract it, or clone the repository.
 3. Open Godot, choose **Import**, select `project.godot` inside the extracted folder, and choose **Import & Edit**.
-4. Wait for the first asset import to finish, then press **F5** to run. Pick a guest or local player name and follow Echo's introduction.
+4. Wait for the first asset import to finish, then press **F5** to run. Choose **Play as guest**, **Sign in**, or **Create an account** and follow Echo's introduction.
 
 If you have an older ZIP, download the latest one into a new folder and import its `project.godot`. Keep the entire extracted folder together.
 
 ## Accounts and saved progress
 
-Choose **Sign up**, **Sign in**, or **Play as guest** when the game opens. Accounts are local to this computer, not cloud accounts. Sign up with a username and a game-specific password of at least eight characters; sign in after restarting to restore your display name, coins, unlocks, gear, story progress, character, ID, friends and settings. Account usernames are unique without regard to letter case; display names can be changed separately. Settings contains **Sign out**.
+Choose **Create an account**, **Sign in**, or **Play as guest** when the game opens. Accounts are local to this computer, not cloud accounts. Sign up with a username and a game-specific password of at least eight characters; sign in after restarting to restore your display name, coins, unlocks, gear, story progress, character, ID, friends and settings. Account usernames are unique without regard to letter case; display names can be changed separately. Settings contains **Sign out**.
 
 Guest play is temporary and cannot overwrite account progress. Launching the game no longer deletes saved progress. Passwords are stored as salted PBKDF2-HMAC-SHA256 verifiers, not plaintext. There is no email recovery or cross-device sync; keep your game-specific password somewhere safe. Local files can be modified by someone with access to your computer; this is not server authentication or anti-cheat.
 
@@ -41,7 +41,7 @@ Choose from three different human fighters. Find glowing beams in the arena: **g
 - **Arenas:** AI Citadel, Desert Outpost, Overgrown Garden, Archive Vault and Skyline Yard have different scenery and layouts. Choose one or select Random.
 - **Help:** controls, FAQs, a community code of conduct and support details.
 
-The UI uses a warmer palette, readable type, and animated bot backgrounds on menu pages. Fighters use imported human models and animation clips. The arenas and animation are still stylized and much simpler than a large commercial game.
+Menus use Barlow lettering, left-aligned controls and a slate, off-white and muted yellow-green palette. A live 3D character stage sits beside the navigation; Help, Friends, Settings and Quit share a fixed footer. Fighters use imported human models and animation clips. The arenas and animation are still stylized and much simpler than a large commercial game.
 
 ### Friends and online matches
 
@@ -57,7 +57,7 @@ After importing once, run `godot --headless --path . --script res://tests/smoke.
 
 ### Environment quality update
 
-The forest and desert now use premade Poly Haven scanned assets rather than sphere trees and primitive cover. The forest includes wind-driven trees, ferns and grass plus three foxes with a native walking animation. The desert has rocky escarpments, cracked ground and ribbed cacti. Natural arena boundaries are concealed behind scenery; the combat area remains 50 metres wide. The original home-page design is retained.
+The forest and desert now use premade Poly Haven scanned assets rather than sphere trees and primitive cover. The forest includes wind-driven trees, ferns and grass plus three foxes with a native walking animation. The desert has rocky escarpments, cracked ground and ribbed cacti. Natural arena boundaries are concealed behind scenery; the combat area remains 50 metres wide. The menu stage is separate from the playable arenas.
 
 Human fighters now use Quaternius Universal Base Characters with detailed faces, hairstyles, adult proportions, field-suit material variants and the matching Universal Animation Library. These replace the earlier cartoon models. The levels are assembled from licensed assets, not imported complete premade maps. Attribution and modification details are in `docs/ASSET_CREDITS.md`.
 
@@ -69,6 +69,6 @@ Shots now use tapered bright cores and fading tracer shells, muzzle flashes, sur
 
 ### Opening screens and pursuing bots
 
-The opening screen and lobby use a charcoal, ivory and burnt-orange palette, a brighter live 3D backdrop, a human character showcase and one clear primary play action. Supporting menus use the same neutral controls.
+The opening screen and lobby use Barlow Medium for controls and Barlow Condensed Semibold for headings. Flat, left-aligned navigation rows, a single muted accent and a matte 3D stage replace the rounded panels and busy background. Quit stays aligned in the footer. Sign-in, setup, settings, market, pause and results share the same type and control styles. See [current Godot screenshots](docs/VISUAL_UPDATE.md).
 
 Bots now share a collision-clearance pathfinding grid built once per match. They pursue the player around cover instead of stopping at 13 metres. Ground robots play their native running animations. The three robot types use different fighting distances; the flanker repositions, while the closer-range robot presses forward. Bots keep separation from teammates, require line of sight to fire, and give a brief reaction window after acquiring the player. Difficulty still controls speed, attack frequency and accuracy. `tests/bot_navigation.gd` checks pursuit, cover routing, animation, blocked shots and respawn.

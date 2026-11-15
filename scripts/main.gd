@@ -1,5 +1,7 @@
 extends Node
 
+const MenuTheme = preload("res://scripts/menu_theme.gd")
+const MenuStage = preload("res://scripts/menu_stage.gd")
 const Arena = preload("res://scripts/arena.gd")
 const OnlineArena = preload("res://scripts/online_arena.gd")
 const SAVE_PATH := "user://haven_save.cfg"
@@ -43,15 +45,13 @@ var friend_error: Label
 var profile_input: LineEdit
 var menu_preview: Node3D
 var ui_theme: Theme
-var display_font: FontVariation
+var menu_stage: Node3D
+var menu_footer: HBoxContainer
 var chosen_map := 0
 var chosen_difficulty := 1
 var chosen_avatar := 0
 var audio_level := 0.8
 var aim_sensitivity := 0.0022
-var intro_camera: Camera3D
-var intro_time := 0.0
-var background_actors: Array = []
 var screen_number := 0
 var market_notice := ""
 var ui: Control
@@ -82,9 +82,9 @@ func _ready() -> void:
 
 func clear_screen() -> void:
 	get_tree().paused = false
-	intro_camera = null
 	menu_preview = null
-	background_actors.clear()
+	menu_stage = null
+	menu_footer = null
 	if is_instance_valid(ui):
 		ui.queue_free()
 		ui = null
@@ -93,135 +93,205 @@ func clear_screen() -> void:
 		arena = null
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
-func build_screen(kicker: String, title: String, subtitle: String) -> VBoxContainer:
+func create_menu_root() -> void:
 	clear_screen()
 	ui = Control.new()
+	ui.name = "MenuRoot"
 	ui.theme = ui_theme
 	ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(ui)
 	var background := ColorRect.new()
-	background.color = Color("171a20")
+	background.color = MenuTheme.INK
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(background)
-	var side := ColorRect.new()
-	side.color = Color(0.05, 0.06, 0.08, 0.10)
-	side.anchor_left = 0.72
-	side.anchor_right = 1.0
-	side.anchor_bottom = 1.0
-	ui.add_child(side)
-	var glow := ColorRect.new()
-	glow.color = Color("e78d54")
-	glow.position = Vector2(66, 64)
-	glow.size = Vector2(48, 4)
-	ui.add_child(glow)
+	add_intro_scene()
+	var header := HBoxContainer.new()
+	header.name = "MenuHeader"
+	header.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	header.offset_left = 64
+	header.offset_right = -64
+	header.offset_top = 28
+	header.offset_bottom = 58
+	header.add_theme_constant_override("separation",18)
+	ui.add_child(header)
+	header.add_child(make_label("HAVEN",24,MenuTheme.TEXT))
+	header.add_child(make_label("/  BOUNCE BACK",14,MenuTheme.MUTED))
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(gap)
+	var status_text := profile_name + "  /  LOCAL PROFILE" if signed_in else ("GUEST PLAY" if profile_choice else "LOCAL PLAY")
+	var status := make_label(status_text,14,MenuTheme.MUTED)
+	status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	header.add_child(status)
+	add_menu_footer()
+
+func add_menu_footer() -> void:
+	var backdrop := ColorRect.new()
+	backdrop.color = Color(0.063,0.09,0.098,0.96)
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	backdrop.offset_top = -76
+	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(backdrop)
+	var rule := ColorRect.new()
+	rule.color = Color(0.65,0.71,0.72,0.25)
+	rule.anchor_top = 1
+	rule.anchor_bottom = 1
+	rule.anchor_right = 1
+	rule.offset_left = 64
+	rule.offset_right = -64
+	rule.offset_top = -76
+	rule.offset_bottom = -75
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(rule)
+	menu_footer = HBoxContainer.new()
+	menu_footer.name = "MenuFooter"
+	menu_footer.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	menu_footer.offset_left = 64
+	menu_footer.offset_right = -64
+	menu_footer.offset_top = -62
+	menu_footer.offset_bottom = -26
+	menu_footer.add_theme_constant_override("separation",28)
+	ui.add_child(menu_footer)
+	var guide := footer_button("Help & controls",show_help,140)
+	guide.name = "HelpAction"
+	if profile_choice: footer_button("Friends",show_friends,90)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	menu_footer.add_child(spacer)
+	if profile_choice: footer_button("Settings",show_settings,88)
+	var quit := footer_button("Quit game",func():
+		save_progress()
+		get_tree().quit()
+	,94,true)
+	quit.name = "QuitAction"
+	quit.alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+func footer_button(title: String, action: Callable, width: int, allow_during_match: bool = false) -> Button:
+	var b := button(menu_footer,title,action,width)
+	b.custom_minimum_size.y = 36
+	b.add_theme_font_size_override("font_size",16)
+	MenuTheme.text_button(b)
+	# Connecting and online results must leave the peer through their Cancel/Leave action.
+	b.disabled = online_active and not allow_during_match
+	if b.disabled: b.tooltip_text = "Leave the online match to open this page."
+	return b
+
+func return_to_home() -> void:
+	if profile_choice: show_menu()
+	else: show_profile_choice()
+
+func build_screen(kicker: String, title: String, subtitle: String) -> VBoxContainer:
+	create_menu_root()
 	var margin := MarginContainer.new()
+	margin.name = "PageContent"
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 68)
-	margin.add_theme_constant_override("margin_top", 85)
-	margin.add_theme_constant_override("margin_right", 68)
-	margin.add_theme_constant_override("margin_bottom", 35)
+	margin.add_theme_constant_override("margin_left",64)
+	margin.add_theme_constant_override("margin_top",100)
+	margin.add_theme_constant_override("margin_right",64)
+	margin.add_theme_constant_override("margin_bottom",94)
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(margin)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 10)
+	column.add_theme_constant_override("separation",8)
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	margin.add_child(column)
-	column.add_child(make_label(kicker.to_upper(), 14, Color("d6bda2")))
-	column.add_child(make_label(title, 43, Color("f4f8fc")))
-	var desc := make_label(subtitle, 17, Color("a6b6c8"))
+	column.add_child(make_label(kicker.to_upper(),13,MenuTheme.MUTED))
+	column.add_child(make_label(title,48,MenuTheme.TEXT))
+	var desc := make_label(subtitle,17,MenuTheme.MUTED)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc.custom_minimum_size = Vector2(0, 48)
+	desc.custom_minimum_size = Vector2(710,36)
+	desc.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	column.add_child(desc)
-	add_intro_scene()
 	return column
 
 func make_label(value: String, font_size: int, color: Color = Color.WHITE) -> Label:
 	var label := Label.new()
 	label.text = value
-	label.add_theme_font_size_override("font_size", font_size)
-	if font_size >= 20:
-		label.add_theme_font_override("font", display_font)
-	label.add_theme_color_override("font_color", color)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_size_override("font_size",font_size)
+	label.add_theme_font_override("font",MenuTheme.HEADING if font_size >= 32 else MenuTheme.BODY)
+	label.add_theme_color_override("font_color",color)
 	return label
 
 func button(parent: Node, title: String, action: Callable, width: int = 350) -> Button:
 	var b := Button.new()
-	b.text = title.capitalize()
-	b.custom_minimum_size = Vector2(width, 48)
+	# Keep intentional casing; automatic Title Case made ordinary controls look unnatural.
+	b.text = title
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(width,44)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	b.add_theme_font_size_override("font_size", 17)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.add_theme_font_size_override("font_size",18)
 	b.pressed.connect(action)
 	parent.add_child(b)
 	return b
 
 func build_theme() -> void:
-	ui_theme = Theme.new()
-	display_font = FontVariation.new()
-	display_font.base_font = load("res://assets/fonts/Outfit.ttf")
-	var text_server := TextServerManager.get_primary_interface()
-	display_font.variation_opentype = {text_server.name_to_tag("wght"): 600}
-	ui_theme.set_font("font", "Button", display_font)
-	for state in ["normal", "hover", "pressed", "focus"]:
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color("292e36") if state == "normal" else (Color("41464d") if state == "hover" else Color("20242b"))
-		style.set_corner_radius_all(8)
-		style.set_border_width_all(1)
-		style.border_color = Color("52545a") if state == "normal" else Color("f2a56e")
-		style.content_margin_left = 14
-		style.content_margin_right = 14
-		ui_theme.set_stylebox(state, "Button", style)
-	ui_theme.set_color("font_color", "Button", Color("f4eee5"))
-	ui_theme.set_color("font_hover_color", "Button", Color.WHITE)
+	ui_theme = MenuTheme.create()
 
 func landing_shell() -> VBoxContainer:
-	build_screen("", "", "")
-	for child in ui.get_children():
-		if child is MarginContainer:
-			ui.remove_child(child)
-			child.queue_free()
-	var nav := HBoxContainer.new()
-	nav.position = Vector2(66,28)
-	nav.add_theme_constant_override("separation",24)
-	ui.add_child(nav)
-	nav.add_child(make_label("H /",30,Color("f39b62")))
-	nav.add_child(make_label("HAVEN   /   BOUNCE BACK",16,Color("eee3d4")))
+	create_menu_root()
 	var col := VBoxContainer.new()
-	col.position = Vector2(66,130)
-	col.size = Vector2(570,540)
-	col.add_theme_constant_override("separation",12)
+	col.name = "LandingActions"
+	col.position = Vector2(64,116)
+	col.size = Vector2(430,500)
+	col.add_theme_constant_override("separation",10)
 	ui.add_child(col)
-	add_portrait("player")
 	return col
 
 func primary_button(parent: Node, text: String, action: Callable, width: int = 430) -> Button:
 	var b := button(parent,text,action,width)
-	b.custom_minimum_size.y = 58
-	for state in ["normal","hover","pressed","focus"]:
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color("e9935d") if state == "normal" else Color("f6b783")
-		style.set_corner_radius_all(8)
-		style.content_margin_left = 20
+	b.name = "PrimaryAction"
+	b.custom_minimum_size.y = 54
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.add_theme_font_size_override("font_size",20)
+	MenuTheme.primary(b)
+	var arrow := make_label("›",28,MenuTheme.INK)
+	arrow.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	arrow.offset_left = -34
+	arrow.offset_right = -16
+	arrow.offset_top = -18
+	arrow.offset_bottom = 18
+	arrow.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	b.add_child(arrow)
+	return b
+
+func menu_row(parent: Node, title: String, action: Callable) -> Button:
+	var b := button(parent,title,action,430)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.add_theme_font_size_override("font_size",21)
+	for state in ["normal","hover","pressed"]:
+		var style := MenuTheme.box(Color(0.14,0.20,0.22,0.7) if state != "normal" else Color.TRANSPARENT,Color(0.5,0.6,0.62,0.25),0)
+		style.set_border_width_all(0)
+		style.border_width_bottom = 1
+		style.content_margin_left = 2
 		b.add_theme_stylebox_override(state,style)
-	b.add_theme_color_override("font_color",Color("211d1a"))
-	b.add_theme_color_override("font_hover_color",Color("211d1a"))
-	b.add_theme_color_override("font_pressed_color",Color("211d1a"))
+	var arrow := make_label("›",22,MenuTheme.MUTED)
+	arrow.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	arrow.offset_left = -24
+	arrow.offset_right = -8
+	arrow.offset_top = -14
+	arrow.offset_bottom = 14
+	b.add_child(arrow)
 	return b
 
 func show_profile_choice() -> void:
 	var col := landing_shell()
-	col.add_child(make_label("THE LAST HUMAN. A SECOND CHANCE.",14,Color("d0b899")))
-	col.add_child(make_label("HAVEN",88,Color("f6efe4")))
-	col.add_child(make_label("BOUNCE BACK",28,Color("e99b67")))
-	var line := make_label("The world went quiet.\nYou didn't.",24,Color("c7c5bf"))
-	col.add_child(line)
-	var spacer := Control.new()
-	spacer.custom_minimum_size.y = 14
-	col.add_child(spacer)
-	primary_button(col,"PLAY AS GUEST   →",start_guest)
-	var accounts_row := HBoxContainer.new()
-	accounts_row.add_theme_constant_override("separation",12)
-	col.add_child(accounts_row)
-	button(accounts_row,"SIGN IN",func(): show_account_form(false),209)
-	button(accounts_row,"CREATE ACCOUNT",func(): show_account_form(true),209)
-	col.add_child(make_label("Sign in to keep your progress on this device.\nGuest sessions are temporary.",15,Color("b8b5ae")))
+	col.add_child(make_label("HAVEN",96,MenuTheme.TEXT))
+	col.add_child(make_label("BOUNCE BACK",22,MenuTheme.ACCENT))
+	var description := make_label("Your next match starts here.",18,MenuTheme.MUTED)
+	col.add_child(description)
+	var gap := Control.new()
+	gap.custom_minimum_size.y = 12
+	col.add_child(gap)
+	primary_button(col,"Play as guest",start_guest)
+	menu_row(col,"Sign in",func(): show_account_form(false))
+	menu_row(col,"Create an account",func(): show_account_form(true))
+	var note := make_label("Sign in to keep your progress on this device.\nGuest progress lasts for this session.",16,MenuTheme.MUTED)
+	note.custom_minimum_size.y = 56
+	note.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	col.add_child(note)
 
 func show_account_form(create: bool) -> void:
 	var col := build_screen("Account on this computer", "CREATE ACCOUNT" if create else "WELCOME BACK", "Choose a unique password for this game. Local passwords cannot be recovered." if create else "Enter your account username and password to restore your progress.")
@@ -229,15 +299,18 @@ func show_account_form(create: bool) -> void:
 	password_input = account_field(col, "Password (at least 8 characters)", true)
 	if create: confirm_input = account_field(col, "Confirm password", true)
 	account_error = make_label("", 16, Color("ffb6a0"))
+	account_error.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	account_error.custom_minimum_size.x = 430
+	account_error.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	col.add_child(account_error)
-	button(col, "CREATE ACCOUNT" if create else "SIGN IN", func():
+	primary_button(col, "Create account" if create else "Sign in", func():
 		if create and password_input.text != confirm_input.text:
 			account_error.text = "The passwords do not match."
 			return
 		var error := open_account(profile_input.text, password_input.text, create)
 		if not error.is_empty(): account_error.text = error
 	)
-	button(col, "BACK", show_profile_choice)
+	button(col, "Back", show_profile_choice)
 	profile_input.grab_focus()
 
 func account_field(col: VBoxContainer, placeholder: String, secret: bool) -> LineEdit:
@@ -321,8 +394,8 @@ func show_profile_entry() -> void:
 	profile_input.custom_minimum_size = Vector2(390, 52)
 	profile_input.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	col.add_child(profile_input)
-	button(col, "CONTINUE", func(): set_profile(profile_input.text), 390)
-	button(col, "BACK", show_profile_choice)
+	button(col, "Continue", func(): set_profile(profile_input.text), 390)
+	button(col, "Back", return_to_home)
 
 func set_profile(value: String) -> void:
 	profile_name = value.strip_edges().substr(0, 18)
@@ -333,55 +406,8 @@ func set_profile(value: String) -> void:
 	show_intro()
 
 func add_portrait(kind: String) -> void:
-	var container := SubViewportContainer.new()
-	container.anchor_left = 0.67
-	container.anchor_right = 0.98
-	container.anchor_top = 0.16
-	container.anchor_bottom = 0.92
-	container.stretch = true
-	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ui.add_child(container)
-	ui.move_child(container, ui.get_child_count() - 3)
-	var viewport := SubViewport.new()
-	viewport.own_world_3d = true
-	viewport.size = Vector2i(400, 550)
-	viewport.transparent_bg = true
-	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	container.add_child(viewport)
-	var world := Node3D.new()
-	viewport.add_child(world)
-	var env := WorldEnvironment.new()
-	var setting := Environment.new()
-	setting.background_mode = Environment.BG_COLOR
-	setting.background_color = Color("282a30")
-	setting.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	setting.ambient_light_color = Color("b6dbea")
-	setting.ambient_light_energy = 0.65
-	env.environment = setting
-	world.add_child(env)
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-35, -30, 0)
-	light.light_energy = 0.85
-	light.light_color = Color("ffead8")
-	world.add_child(light)
-	if kind == "echo":
-		menu_preview = load("res://assets/quaternius/Enemy_EyeDrone.gltf").instantiate()
-		menu_preview.scale = Vector3.ONE * 1.5
-		menu_preview.position.y = 1.05
-		world.add_child(menu_preview)
-	else:
-		menu_preview = Node3D.new()
-		menu_preview.set_script(load("res://scripts/character_visual.gd"))
-		world.add_child(menu_preview)
-		menu_preview.setup(chosen_avatar, chosen_weapon, bool(equipped.get("headgear", false)))
-		menu_preview.preview_idle = true
-		menu_preview.rotation.y = PI
-	var cam := Camera3D.new()
-	cam.position = Vector3(0, 1.2, 3.1)
-	cam.fov = 40
-	world.add_child(cam)
-	cam.look_at(Vector3(0, 1.05, 0))
-	cam.current = true
+	if is_instance_valid(menu_stage):
+		menu_preview = menu_stage.set_hero(kind,chosen_avatar,chosen_weapon,bool(equipped.get("headgear",false)))
 
 func show_intro() -> void:
 	show_echo_dialogue(0)
@@ -401,59 +427,31 @@ func show_echo_dialogue(page: int) -> void:
 	message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	message.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	col.add_child(message)
-	button(col, "ENTER HAVEN" if page == messages.size() - 1 else "NEXT  →", func():
+	button(col, "Enter Haven" if page == messages.size() - 1 else "Next", func():
 		if page + 1 < messages.size(): show_echo_dialogue(page + 1)
 		else: show_menu()
 	)
-	button(col, "SKIP INTRO", show_menu)
+	button(col, "Skip intro", show_menu)
 
 func add_intro_scene() -> void:
 	var container := SubViewportContainer.new()
+	container.name = "LiveStage"
 	container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	container.stretch = true
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(container)
-	ui.move_child(container, 1)
 	var viewport := SubViewport.new()
 	viewport.own_world_3d = true
-	viewport.size = Vector2i(1280, 720)
+	viewport.size = Vector2i(1280,720)
+	viewport.msaa_3d = Viewport.MSAA_4X
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	container.add_child(viewport)
-	var world := Node3D.new()
-	world.set_script(Arena)
-	viewport.add_child(world)
-	world.build_environment(0)
-	world.accent = Color("cf966a")
-	world.build_arena(0)
-	for environment_node in world.get_children():
-		if environment_node is WorldEnvironment:
-			var sky_mat := ProceduralSkyMaterial.new()
-			sky_mat.sky_top_color = Color("343b4a")
-			sky_mat.sky_horizon_color = Color("a58b78")
-			sky_mat.ground_horizon_color = Color("6a655f")
-			sky_mat.ground_bottom_color = Color("20252d")
-			var menu_sky := Sky.new()
-			menu_sky.sky_material = sky_mat
-			environment_node.environment.sky = menu_sky
+	menu_stage = Node3D.new()
+	menu_stage.set_script(MenuStage)
+	viewport.add_child(menu_stage)
 	screen_number += 1
-	var bot_names := ["Enemy_EyeDrone", "Enemy_QuadShell", "Enemy_Trilobite"]
-	var bot_index := 0
-	for point in [Vector3(-8, 4, -4), Vector3(7, 5, -8), Vector3(2, 3, 5)]:
-		var bot_name: String = bot_names[(bot_index + screen_number) % bot_names.size()]
-		bot_index += 1
-		var drone = load("res://assets/quaternius/" + bot_name + ".gltf").instantiate()
-		drone.position = point
-		drone.scale = Vector3.ONE * 1.35
-		world.add_child(drone)
-		background_actors.append({"node": drone, "base": point})
-		var animations = drone.find_children("*", "AnimationPlayer", true, false)
-		if not animations.is_empty() and animations[0].has_animation("Idle"):
-			animations[0].play("Idle")
-	intro_camera = Camera3D.new()
-	world.add_child(intro_camera)
-	intro_camera.position = Vector3(18, 12, 23)
-	intro_camera.look_at(Vector3(0, 1, 0))
-	intro_camera.current = true
+	menu_stage.build(chosen_avatar,chosen_weapon,bool(equipped.get("headgear",false)),screen_number)
+	menu_preview = menu_stage.hero
 	var tint := ColorRect.new()
 	var scrim := ShaderMaterial.new()
 	scrim.shader = preload("res://assets/shaders/menu_scrim.gdshader")
@@ -461,55 +459,26 @@ func add_intro_scene() -> void:
 	tint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(tint)
-	ui.move_child(tint, 2)
-
-func _process(delta: float) -> void:
-	if is_instance_valid(menu_preview):
-		if menu_preview.has_method("animate_motion"):
-			menu_preview.rotation.y = PI + 0.12 + sin(intro_time * 0.45) * 0.08
-		else: menu_preview.rotation.y += delta * 0.24
-		if menu_preview.has_method("animate_motion"):
-			menu_preview.animate_motion(delta, 0.0)
-	if is_instance_valid(intro_camera):
-		intro_time += delta
-		for actor in background_actors:
-			if is_instance_valid(actor["node"]):
-				var node: Node3D = actor["node"]
-				var base: Vector3 = actor["base"]
-				node.position = base + Vector3(sin(intro_time * 0.7 + base.x) * 1.3, sin(intro_time * 1.3 + base.z) * 0.4, cos(intro_time * 0.5 + base.x) * 1.1)
-				node.rotation.y += delta * 0.35
-		intro_camera.position = Vector3(sin(intro_time * 0.08) * 18.0, 11.0, cos(intro_time * 0.08) * 22.0)
-		intro_camera.look_at(Vector3(0, 1, 0))
 
 func show_menu() -> void:
 	story_mode = false
 	survival_selected = false
 	var col := landing_shell()
-	col.add_child(make_label(("WELCOME BACK, " + profile_name).to_upper(),14,Color("d0b899")))
-	col.add_child(make_label("BACK IN\nTHE FIGHT.",58,Color("f6efe4")))
-	col.add_child(make_label("%d coins   /   %d victories" % [coins,wins],19,Color("e7b58a")))
-	if not save_notice.is_empty(): col.add_child(make_label(save_notice,15,Color("ffb6a0")))
-	primary_button(col,"ENTER THE ARENA   →",show_setup)
-	var modes := HBoxContainer.new()
-	modes.add_theme_constant_override("separation",12)
-	col.add_child(modes)
-	button(modes,"SURVIVAL",func():
+	col.add_child(make_label("WELCOME BACK, " + profile_name.to_upper(),14,MenuTheme.MUTED))
+	col.add_child(make_label("PLAY",72,MenuTheme.TEXT))
+	col.add_child(make_label("%d coins    /    %d victories" % [coins,wins],18,MenuTheme.ACCENT))
+	if not save_notice.is_empty(): col.add_child(make_label(save_notice,16,Color("ffb6a0")))
+	var gap := Control.new()
+	gap.custom_minimum_size.y = 6
+	col.add_child(gap)
+	primary_button(col,"Play vs bots",show_setup)
+	menu_row(col,"Survival",func():
 		survival_selected = true
 		show_setup()
-	,209)
-	button(modes,"PLAY ONLINE",show_online,209)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation",12)
-	col.add_child(row)
-	button(row,"LOADOUT & MARKET",show_store,209)
-	button(row,"STORY MISSIONS",show_story,209)
-	var utility := HBoxContainer.new()
-	utility.add_theme_constant_override("separation",8)
-	col.add_child(utility)
-	button(utility,"Friends",show_friends,138)
-	button(utility,"Settings",show_settings,138)
-	button(utility,"Help",show_help,138)
-	button(col,"Quit",func(): get_tree().quit(),138)
+	)
+	menu_row(col,"Online multiplayer",show_online)
+	menu_row(col,"Loadout & weapons",show_store)
+	menu_row(col,"Story missions",show_story)
 
 func show_story() -> void:
 	story_mode = false
@@ -523,8 +492,8 @@ func show_story() -> void:
 			if unlocked:
 				story_brief(stage)
 		, 610)
-	button(col, "REPLAY OPENING", show_intro)
-	button(col, "BACK", show_menu)
+	button(col, "Replay opening", show_intro)
+	button(col, "Back", return_to_home)
 
 func story_brief(stage: int) -> void:
 	var titles := ["THE FIRST SIGNAL", "THE DESERT SIGNAL", "GHOSTS IN THE GARDEN", "THE ARCHIVE VAULT", "A CITY RETURNS"]
@@ -537,8 +506,8 @@ func story_brief(stage: int) -> void:
 	]
 	var col := build_screen("Story  /  mission %02d" % (stage + 1), titles[stage], briefs[stage])
 	col.add_child(make_label("OBJECTIVE: Recover 8 echoes before time runs out.", 19, Color("b4c9d8")))
-	button(col, "SPEAK TO ECHO", func(): show_mission_dialogue(stage, 0))
-	button(col, "BACK", show_story)
+	button(col, "Speak to Echo", func(): show_mission_dialogue(stage, 0))
+	button(col, "Back", show_story)
 
 func show_mission_dialogue(stage: int, page: int) -> void:
 	var dialogue := [
@@ -555,7 +524,7 @@ func show_mission_dialogue(stage: int, page: int) -> void:
 	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	line.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	col.add_child(line)
-	button(col, "NEXT  →" if page == 0 else "START LEVEL  →", func():
+	button(col, "Next" if page == 0 else "Start level", func():
 		if page == 0:
 			show_mission_dialogue(stage, 1)
 		else:
@@ -565,10 +534,10 @@ func show_mission_dialogue(stage: int, page: int) -> void:
 			chosen_difficulty = 2 if stage == 4 else (0 if stage == 0 else 1)
 			start_match()
 	)
-	button(col, "BACK TO LEVELS", show_story)
+	button(col, "Back to levels", show_story)
 
 func add_option(col: VBoxContainer, title: String, values: Array, selected: int, callback: Callable) -> void:
-	col.add_child(make_label(title, 14, Color("d0b899")))
+	col.add_child(make_label(title, 14, MenuTheme.MUTED))
 	var option := OptionButton.new()
 	option.custom_minimum_size = Vector2(350, 43)
 	option.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -585,13 +554,13 @@ func show_setup() -> void:
 	add_option(col, "BOT DIFFICULTY", ["Easy", "Medium", "Hard"], chosen_difficulty, func(i): chosen_difficulty = i)
 	add_option(col, "YOUR FIGHTER", ["Survivor", "Scout", "Runner"], chosen_avatar, func(i): chosen_avatar = i)
 	col.add_child(make_label("WASD move · mouse aim · click fire · SPACE jump · SHIFT sprint · Q dash · E roll", 15, Color("bbcbd5")))
-	button(col, "START MATCH  →", start_match)
-	button(col, "BACK", show_menu)
+	primary_button(col, "Start match", start_match,350)
+	button(col, "Back", return_to_home)
 
 func show_settings() -> void:
 	var col := build_screen("Preferences", "SETTINGS", "Adjust your controls. Signed-in accounts save these settings.")
-	col.add_child(make_label("Signed in as " + login_name if signed_in else "Guest session · progress is temporary", 16, Color("c8dde6")))
-	col.add_child(make_label("MASTER VOLUME", 14, Color("d0b899")))
+	col.add_child(make_label("Signed in as " + login_name if signed_in else "Guest session · progress is temporary", 16, MenuTheme.TEXT))
+	col.add_child(make_label("MASTER VOLUME", 14, MenuTheme.MUTED))
 	var volume := HSlider.new()
 	volume.min_value = 0.0
 	volume.max_value = 1.0
@@ -605,7 +574,7 @@ func show_settings() -> void:
 		save_progress()
 	)
 	col.add_child(volume)
-	col.add_child(make_label("MOUSE SENSITIVITY", 14, Color("d0b899")))
+	col.add_child(make_label("MOUSE SENSITIVITY", 14, MenuTheme.MUTED))
 	var sensitivity := HSlider.new()
 	sensitivity.min_value = 0.001
 	sensitivity.max_value = 0.006
@@ -618,9 +587,9 @@ func show_settings() -> void:
 		save_progress()
 	)
 	col.add_child(sensitivity)
-	button(col, "CHANGE DISPLAY NAME", show_profile_entry, 440)
-	button(col, "SIGN OUT" if signed_in else "END GUEST SESSION", sign_out, 440)
-	button(col, "BACK", show_menu)
+	button(col, "Change display name", show_profile_entry)
+	button(col, "Sign out" if signed_in else "End guest session", sign_out)
+	button(col, "Back", return_to_home)
 
 func apply_audio() -> void:
 	AudioServer.set_bus_mute(0, audio_level <= 0.001)
@@ -631,21 +600,21 @@ func show_online() -> void:
 	var col := build_screen("Private match  /  port 7777", "PLAY ONLINE", "Host a match or join a friend using their IP address. The host chooses the arena.")
 	add_option(col, "HOST ARENA", ["AI Citadel", "Desert Outpost", "Overgrown Garden", "Archive Vault", "Skyline Yard", "Random"], chosen_map, func(i): chosen_map = i)
 	add_option(col, "YOUR AVATAR", ["Survivor", "Scout", "Runner"], chosen_avatar, func(i): chosen_avatar = i)
-	button(col, "HOST A MATCH", host_online)
-	col.add_child(make_label("HOST ADDRESS", 14, Color("d0b899")))
+	button(col, "Host a match", host_online)
+	col.add_child(make_label("HOST ADDRESS", 14, MenuTheme.MUTED))
 	address_box = LineEdit.new()
 	address_box.placeholder_text = "Host IP address, e.g. 192.168.1.10"
 	address_box.text = "127.0.0.1"
 	address_box.custom_minimum_size = Vector2(380, 40)
 	address_box.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	col.add_child(address_box)
-	button(col, "JOIN MATCH", join_online)
-	col.add_child(make_label("Same network: use the host's local IP. Internet play may need UDP port forwarding.", 13, Color("a6b6c8")))
-	button(col, "BACK", show_menu)
+	button(col, "Join match", join_online)
+	col.add_child(make_label("Same network: use the host's local IP. Internet play may need UDP port forwarding.", 13, MenuTheme.MUTED))
+	button(col, "Back", return_to_home)
 
 func online_error(message: String) -> void:
 	var col := build_screen("Connection", "CONNECTION PROBLEM", message)
-	button(col, "BACK", show_online)
+	button(col, "Back", show_online)
 
 func host_online() -> void:
 	ensure_uid()
@@ -685,7 +654,7 @@ func start_join(raw_address: String) -> void:
 	online_finished = false
 	multiplayer.multiplayer_peer = peer
 	var col := build_screen("Private match", "CONNECTING...", "Connecting to " + address + ":7777")
-	button(col, "CANCEL", leave_online)
+	button(col, "Cancel", leave_online)
 
 func create_online_world(map_index: int, own_slot: int) -> void:
 	clear_screen()
@@ -854,8 +823,8 @@ func _online_finish(winner: int) -> void:
 		save_progress()
 	var title := "MATCH WON" if won else "MATCH COMPLETE"
 	var col := build_screen("Online result", title, "The host has completed the match.")
-	col.add_child(make_label("COINS EARNED   +%d" % (80 if won else 0), 20, Color("f9d17d")))
-	button(col, "LEAVE MATCH", leave_online)
+	col.add_child(make_label("COINS EARNED   +%d" % (80 if won else 0), 20, MenuTheme.ACCENT))
+	button(col, "Leave match", leave_online)
 
 func generate_uid() -> String:
 	return "HAVEN-" + Crypto.new().generate_random_bytes(16).hex_encode().to_upper()
@@ -898,7 +867,7 @@ func show_friends() -> void:
 	own_id.text = player_uid
 	own_id.custom_minimum_size = Vector2(590, 42)
 	id_row.add_child(own_id)
-	button(id_row, "COPY ID", func(): DisplayServer.clipboard_set(player_uid), 150)
+	button(id_row, "Copy ID", func(): DisplayServer.clipboard_set(player_uid), 150)
 	friend_query = LineEdit.new()
 	friend_query.placeholder_text = "Search by name or full HAVEN ID"
 	friend_query.custom_minimum_size = Vector2(590, 42)
@@ -907,6 +876,7 @@ func show_friends() -> void:
 	col.add_child(friend_query)
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(760, 150)
+	scroll.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	col.add_child(scroll)
@@ -916,8 +886,8 @@ func show_friends() -> void:
 	var actions := HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 10)
 	col.add_child(actions)
-	button(actions, "ADD FRIEND", func(): show_friend_editor({}), 230)
-	button(actions, "BACK", show_menu, 180)
+	button(actions, "Add friend", func(): show_friend_editor({}), 230)
+	button(actions, "Back", return_to_home, 180)
 	refresh_friends("")
 
 func refresh_friends(query: String) -> void:
@@ -937,14 +907,14 @@ func refresh_friends(query: String) -> void:
 			var row := HBoxContainer.new()
 			row.add_theme_constant_override("separation", 8)
 			friend_results.add_child(row)
-			var description := make_label("%s  %s\n%s" % [name, "· SAVED" if saved else "· RECENT", uid], 14, Color("d6e9ef"))
+			var description := make_label("%s  %s\n%s" % [name, "· SAVED" if saved else "· RECENT", uid], 14, MenuTheme.TEXT)
 			description.custom_minimum_size = Vector2(510, 48)
 			row.add_child(description)
 			var copy: Dictionary = item.duplicate()
-			button(row, "EDIT" if saved else "ADD", func(): show_friend_editor(copy), 110)
-			if saved: button(row, "JOIN", func(): join_friend(copy), 110)
+			button(row, "Edit" if saved else "Add", func(): show_friend_editor(copy), 110)
+			if saved: button(row, "Join", func(): join_friend(copy), 110)
 	if displayed.is_empty():
-		friend_results.add_child(make_label("No local matches. Add a friend's ID or meet them in a private match.", 15, Color("a6b6c8")))
+		friend_results.add_child(make_label("No local matches. Add a friend's ID or meet them in a private match.", 15, MenuTheme.MUTED))
 
 func friend_index(uid: String) -> int:
 	for i in range(friends.size()):
@@ -952,7 +922,7 @@ func friend_index(uid: String) -> int:
 	return -1
 
 func show_friend_editor(entry: Dictionary) -> void:
-	var col := build_screen("Friends  /  local address book", "SAVE A FRIEND", "Enter the ID exactly. Names may be shared; your list lasts until the game restarts.")
+	var col := build_screen("Friends  /  local address book", "SAVE A FRIEND", "Enter the ID exactly. Names may be shared; signed-in accounts keep their saved friends.")
 	friend_name_input = LineEdit.new()
 	friend_name_input.placeholder_text = "Friend's player name"
 	friend_name_input.text = str(entry.get("name", ""))
@@ -975,16 +945,16 @@ func show_friend_editor(entry: Dictionary) -> void:
 	col.add_child(friend_address_input)
 	friend_error = make_label("", 15, Color("ffb4a8"))
 	col.add_child(friend_error)
-	button(col, "SAVE FRIEND", save_friend, 390)
+	button(col, "Save friend", save_friend, 390)
 	var old_uid := str(entry.get("uid", ""))
 	if friend_index(old_uid) >= 0:
-		button(col, "REMOVE FRIEND", func():
+		button(col, "Remove friend", func():
 			var idx := friend_index(old_uid)
 			if idx >= 0: friends.remove_at(idx)
 			save_progress()
 			show_friends()
 		, 390)
-	button(col, "BACK", show_friends, 390)
+	button(col, "Back", show_friends, 390)
 
 func save_friend() -> void:
 	var uid := friend_uid_input.text.strip_edges().to_upper()
@@ -1013,7 +983,8 @@ func join_friend(entry: Dictionary) -> void:
 func show_help() -> void:
 	var col := build_screen("Haven guide", "HELP & COMMUNITY", "Find controls, common answers, and the community code of conduct.")
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(780, 340)
+	scroll.custom_minimum_size = Vector2(780, 260)
+	scroll.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	col.add_child(scroll)
@@ -1031,47 +1002,51 @@ func show_help() -> void:
 		["PRIVACY", "Do not share someone else's personal information or account details."],
 		["SUPPORT", "Charvik Reddy Pulluru  ·  charvikreddypulluru@giis.edu.sg  ·  85699182"]
 	]:
-		content.add_child(make_label(section[0], 16, Color("d0b899")))
-		var body := make_label(section[1], 16, Color("d6e9ef"))
+		content.add_child(make_label(section[0], 16, MenuTheme.MUTED))
+		var body := make_label(section[1], 16, MenuTheme.TEXT)
 		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		body.custom_minimum_size.x = 740
 		content.add_child(body)
-	button(col, "BACK", show_menu)
+	button(col, "Back", return_to_home)
 
 func show_store() -> void:
 	var col := build_screen("Haven market", "MARKET & LOADOUT", "Find your gear. Earn coins in bot matches, story levels, and survival waves.")
-	var status := make_label("YOUR BALANCE: %d COINS    %s" % [coins, market_notice], 17, Color("f9d17d"))
+	var status := make_label("YOUR BALANCE: %d COINS    %s" % [coins, market_notice], 17, MenuTheme.ACCENT)
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status.custom_minimum_size.x = 710
+	status.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	col.add_child(status)
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(780, 310)
+	scroll.custom_minimum_size = Vector2(710, 240)
+	scroll.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	col.add_child(scroll)
 	var items := VBoxContainer.new()
+	items.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	items.add_theme_constant_override("separation", 9)
 	scroll.add_child(items)
-	items.add_child(make_label("WEAPONS", 16, Color("d0b899")))
+	items.add_child(make_label("WEAPONS", 16, MenuTheme.MUTED))
 	var details := {"Pulse Rifle": "Balanced automatic weapon for most ranges.", "Scatter Blaster": "Wide spread; strongest up close.", "Longshot": "Accurate and powerful, with a slower shot."}
 	for weapon in COSTS.keys():
 		var name: String = weapon
 		var action: String = "EQUIPPED" if name == chosen_weapon else ("EQUIP" if name in owned else "%d COINS" % COSTS[name])
 		add_market_card(items, name, details[name], action, func(): select_weapon(name))
-	items.add_child(make_label("EQUIPMENT  ·  SOLO AND STORY", 16, Color("d0b899")))
+	items.add_child(make_label("EQUIPMENT  ·  SOLO AND STORY", 16, MenuTheme.MUTED))
 	for item in GEAR.keys():
 		var name: String = item
 		var slot: String = GEAR[name]["slot"]
 		var action: String = "REMOVE" if bool(equipped.get(slot, false)) else ("EQUIP" if name in gear_owned else "%d COINS" % GEAR[name]["cost"])
 		add_market_card(items, name, str(GEAR[name]["detail"]), action, func(): select_gear(name))
-	button(col, "BACK", show_menu)
+	button(col, "Back", return_to_home)
 
 func add_market_card(parent: Node, name: String, detail: String, action: String, callback: Callable) -> void:
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.13, 0.145, 0.17, 0.96)
-	style.set_corner_radius_all(8)
+	style.bg_color = Color(0.09,0.13,0.15,0.94)
+	style.set_corner_radius_all(2)
 	style.set_border_width_all(1)
-	style.border_color = Color("55565b")
+	style.border_color = MenuTheme.LINE
 	style.content_margin_left = 8
 	style.content_margin_right = 8
 	style.content_margin_top = 8
@@ -1088,9 +1063,10 @@ func add_market_card(parent: Node, name: String, detail: String, action: String,
 	row.add_child(icon)
 	var text := VBoxContainer.new()
 	text.custom_minimum_size = Vector2(350, 72)
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(text)
-	text.add_child(make_label(name.to_upper(), 18, Color("e8f7fa")))
-	var desc := make_label(detail, 14, Color("c3bfb7"))
+	text.add_child(make_label(name.to_upper(), 18, MenuTheme.TEXT))
+	var desc := make_label(detail, 14, MenuTheme.MUTED)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	text.add_child(desc)
 	button(row, action, callback, 170)
@@ -1157,17 +1133,17 @@ func on_match_finished(won: bool, score: int, reason: String) -> void:
 	var title := "MEMORY RECOVERED" if won else "MATCH COMPLETE"
 	var col := build_screen("Match result", title, reason)
 	col.add_child(make_label("ELIMINATIONS   %d" % score if survival_selected else "ELIMINATIONS   %d / 8" % score, 23))
-	col.add_child(make_label("COINS EARNED   +%d" % (survival_earned if survival_selected else reward), 20, Color("f9d17d")))
+	col.add_child(make_label("COINS EARNED   +%d" % (survival_earned if survival_selected else reward), 20, MenuTheme.ACCENT))
 	if won:
 		var fragments := ["ECHO: 'Someone used to call this place home.'", "ECHO: 'These voices... I think I remember them.'", "ECHO: 'The archive is still waiting for us.'", "ECHO: 'The final beacon is on the skyline.'", "ECHO: 'Haven is its people. Together, we brought it back.'"]
 		var fragment_index: int = story_stage if story_mode else (wins - 1) % fragments.size()
-		col.add_child(make_label(fragments[fragment_index], 19, Color("d0b899")))
-	button(col, "PLAY AGAIN", start_match)
+		col.add_child(make_label(fragments[fragment_index], 19, MenuTheme.MUTED))
+	primary_button(col, "Play again", start_match,350)
 	if story_mode:
 		if won and story_stage < 4:
-			button(col, "NEXT LEVEL  →", func(): story_brief(story_stage + 1), 440)
-		button(col, "STORY MISSIONS", show_story)
-	button(col, "HOME", show_menu)
+			button(col, "Next level", func(): story_brief(story_stage + 1), 440)
+		button(col, "Story missions", show_story)
+	button(col, "Home", show_menu)
 
 func save_progress() -> void:
 	if not signed_in: return

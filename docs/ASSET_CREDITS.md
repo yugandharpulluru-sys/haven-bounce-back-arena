@@ -61,3 +61,9 @@ Licence: SIL Open Font License 1.1. The font and licence are in `assets/fonts/`.
 ## Layered outfit update
 
 Quaternius **Modular Character Outfits – Fantasy (Standard)**: https://quaternius.itch.io/modular-character-outfits-fantasy — CC0. Premade male/female Ranger and male Peasant outfits replace the painted field suits. Outfits are bound to the matching character skeleton; hidden underlying body surfaces are removed to prevent clipping, textures resized to 1K. Source licence included in `assets/licenses/Quaternius-Outfits.txt`. Face presentation uses softer portrait lighting and natural hair colour overrides. Paths, distant terrain and relay-gate layout are project-authored.
+
+## Barlow and Barlow Condensed — The Barlow Project Authors
+
+Sources: https://github.com/google/fonts/tree/main/ofl/barlow and https://github.com/google/fonts/tree/main/ofl/barlowcondensed
+
+Licence: SIL Open Font License 1.1. Unmodified Barlow Medium and Barlow Condensed Semibold are bundled in `assets/fonts/`, along with `Barlow-OFL.txt` and `BarlowCondensed-OFL.txt`. Used for menu text and headings respectively.

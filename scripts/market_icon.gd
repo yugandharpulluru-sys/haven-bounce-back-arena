@@ -3,12 +3,11 @@ extends Control
 var item := ""
 
 func _draw() -> void:
-	var cyan := Color("d5b493")
-	var gold := Color("ffc76d")
-	var pale := Color("eee4d7")
+	var cyan := Color("b7c6c6")
+	var gold := Color("d5df88")
+	var pale := Color("eef0e9")
 	var r := Rect2(Vector2.ZERO, size)
-	draw_rect(r, Color("292e36"), true)
-	draw_arc(size * 0.5, 28, 0, TAU, 32, Color("a47e5f"), 2.0, true)
+	draw_rect(r, Color("1b2529"), true)
 	var center := size * 0.5
 	if item in ["Pulse Rifle", "Scatter Blaster", "Longshot"]:
 		var barrel_end := 18.0 if item == "Scatter Blaster" else 35.0

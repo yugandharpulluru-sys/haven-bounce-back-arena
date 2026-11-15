@@ -1,5 +1,7 @@
 extends Node3D
 
+const MenuTheme = preload("res://scripts/menu_theme.gd")
+
 signal match_finished(won: bool, score: int, reason: String)
 signal return_requested
 signal wave_completed(wave: int, reward: int)
@@ -502,27 +504,34 @@ func toggle_pause() -> void:
 	pause_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(pause_layer)
 	var panel := ColorRect.new()
-	panel.color = Color(0.02, 0.04, 0.08, 0.88)
+	panel.color = Color(0.063,0.09,0.098,0.92)
 	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	pause_layer.add_child(panel)
 	var center := CenterContainer.new()
+	center.theme = MenuTheme.create()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	pause_layer.add_child(center)
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 16)
 	center.add_child(column)
-	var title := hud_label("MATCH MENU" if online_mode else "PAUSED", 34, Color.WHITE)
+	var title := hud_label("MATCH MENU" if online_mode else "PAUSED", 48, MenuTheme.TEXT)
+	title.add_theme_font_override("font",MenuTheme.HEADING)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(title)
 	if online_mode:
-		column.add_child(hud_label("Online matches continue while this menu is open.", 14, Color("a6b6c8")))
+		var note := Label.new()
+		note.text = "Online matches continue while this menu is open."
+		note.add_theme_font_size_override("font_size",16)
+		note.add_theme_color_override("font_color",MenuTheme.MUTED)
+		column.add_child(note)
 	var resume := Button.new()
-	resume.text = "RESUME"
+	resume.text = "Resume"
 	resume.custom_minimum_size = Vector2(350, 48)
+	MenuTheme.primary(resume)
 	resume.pressed.connect(toggle_pause)
 	column.add_child(resume)
 	var quit := Button.new()
-	quit.text = "LEAVE MATCH"
+	quit.text = "Leave match"
 	quit.custom_minimum_size = Vector2(350, 48)
 	quit.pressed.connect(func():
 		get_tree().paused = false
