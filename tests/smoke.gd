@@ -15,7 +15,12 @@ func check(condition: bool, message: String) -> void:
 func run() -> void:
 	var scene = load("res://scenes/main.tscn").instantiate()
 	scene.save_path = "user://haven_smoke_test.cfg"
+	var old_save := ConfigFile.new()
+	old_save.set_value("progress", "coins", 999)
+	old_save.set_value("profile", "chosen", true)
+	old_save.save(scene.save_path)
 	root.add_child(scene)
+	check(scene.coins == 0 and not scene.profile_choice and not FileAccess.file_exists(scene.save_path), "new run resets profile and progress")
 	scene.coins = 0
 	scene.wins = 0
 	scene.owned = ["Pulse Rifle"]
@@ -52,12 +57,24 @@ func run() -> void:
 	scene.show_menu()
 	scene.show_setup()
 	check(is_instance_valid(scene.ui), "match setup loads")
+	var avatar_files := {}
+	for avatar_id in range(3):
+		var preview := Node3D.new()
+		preview.set_script(load("res://scripts/character_visual.gd"))
+		root.add_child(preview)
+		preview.setup(avatar_id, "Pulse Rifle")
+		avatar_files[preview.avatar_file] = true
+		check(is_instance_valid(preview.animator) and preview.animator.has_animation("Run_Carry") and preview.animator.has_animation("Roll") and preview.animator.has_animation("Shoot_OneHanded"), "avatar %d has movement and shooting animations" % avatar_id)
+		preview.queue_free()
+	check(avatar_files.size() == 3, "three different human avatars load")
 	for map_id in range(5):
 		scene.chosen_map = map_id
 		scene.start_match()
 		await process_frame
 		await physics_frame
 		check(is_instance_valid(scene.arena) and is_instance_valid(scene.arena.human), "map %d and player load" % map_id)
+		if map_id == 1: check(scene.arena.ground_texture.ends_with("dry_diff.jpg"), "desert uses dry ground")
+		if map_id == 2: check(scene.arena.ground_texture.ends_with("grass_diff.jpg"), "garden uses grass ground")
 		if map_id == 0:
 			scene.arena.toggle_pause()
 			check(paused, "offline match pauses")
@@ -69,14 +86,13 @@ func run() -> void:
 			var game = scene.arena
 			check(is_instance_valid(game.human.character) and is_instance_valid(game.human.character.skeleton), "third-person fighter and rig load")
 			var character = game.human.character
-			var head_found := false
-			for mesh in character.find_children("*", "MeshInstance3D", true, false):
-				if str(mesh.name).begins_with("Head") and mesh.get_aabb().position.y > 1.5:
-					head_found = true
-			check(head_found, "fighter head is aligned with body")
+			check(is_instance_valid(character.animator) and character.animator.has_animation("Run_Carry") and character.animator.has_animation("Roll"), "human fighter has run and roll animations")
 			character.animate_motion(0.12, 1.0)
-			var leg: int = character.bone_indices["thigh.L"]
-			check(not character.skeleton.get_bone_pose_rotation(leg).is_equal_approx(character.rest_rotations["thigh.L"]), "character legs animate when moving")
+			check(character.animator.current_animation == "Run_Carry", "character uses run animation while moving")
+			game.human.perform_roll()
+			check(character.animator.current_animation == "Roll" and game.human.roll_cooldown > 0, "dodge roll starts its animation and cooldown")
+			game.human.dash_timer = 0
+			character.action_time = 0
 			var before_move: Vector3 = game.human.position
 			var key := InputEventKey.new()
 			key.keycode = KEY_W
@@ -111,6 +127,10 @@ func run() -> void:
 	for i in range(8): scene.arena.bot_defeated(Vector3.ZERO)
 	await process_frame
 	check(scene.story_unlocked == 1, "story victory unlocks next mission")
+	scene.coins = 0
+	scene.owned = ["Pulse Rifle"]
+	scene.select_weapon("Longshot")
+	check(scene.market_notice.contains("Not enough coins") and scene.chosen_weapon != "Longshot", "market explains an unaffordable purchase")
 	scene.coins = 1000
 	scene.select_gear("Kinetic Shield")
 	scene.select_gear("Armor Plate")
@@ -131,12 +151,20 @@ func run() -> void:
 	check(fighter.collect_powerup("shield") and fighter.shield == 25, "shield pickup recharges shield")
 	fighter.dash_cooldown = 2
 	check(fighter.collect_powerup("dash") and fighter.dash_cooldown == 0, "dash pickup resets cooldown")
+	scene.survival_selected = true
+	scene.story_mode = false
+	scene.start_match()
+	await process_frame
+	var coins_before_wave: int = scene.coins
+	for i in range(8): scene.arena.bot_defeated(Vector3.ZERO)
+	check(scene.arena.wave == 2 and not scene.arena.ended and scene.coins > coins_before_wave, "survival advances to the next rewarding wave")
+	scene.survival_selected = false
 	scene.coins = 1000
 	scene.select_weapon("Scatter Blaster")
 	check(scene.chosen_weapon == "Scatter Blaster" and "Scatter Blaster" in scene.owned, "weapon purchase equips and unlocks")
 	scene.chosen_weapon = "Pulse Rifle"
 	scene.load_progress()
-	check(scene.chosen_weapon == "Scatter Blaster" and scene.equipped["shield"] and scene.profile_name == "Test Runner" and scene.valid_uid(scene.player_uid) and scene.friend_index(id_one) >= 0, "progress, gear, ID and friends persist to disk")
+	check(scene.chosen_weapon == "Scatter Blaster" and scene.equipped["shield"] and scene.profile_name == "Test Runner" and scene.valid_uid(scene.player_uid) and scene.friend_index(id_one) >= 0, "in-session save contains progress, gear, ID and friends")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(scene.save_path))
 	print("SMOKE TEST ", "FAILED" if failed else "PASSED")
 	quit(1 if failed else 0)

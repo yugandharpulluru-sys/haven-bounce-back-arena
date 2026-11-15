@@ -15,6 +15,8 @@ var coins := 0
 var wins := 0
 var story_unlocked := 0
 var story_mode := false
+var survival_selected := false
+var survival_earned := 0
 var story_stage := 0
 var owned := ["Pulse Rifle"]
 var chosen_weapon := "Pulse Rifle"
@@ -34,6 +36,7 @@ var friend_error: Label
 var profile_input: LineEdit
 var menu_preview: Node3D
 var ui_theme: Theme
+var display_font: FontVariation
 var chosen_map := 0
 var chosen_difficulty := 1
 var chosen_avatar := 0
@@ -42,6 +45,8 @@ var aim_sensitivity := 0.0022
 var intro_camera: Camera3D
 var intro_time := 0.0
 var background_actors: Array = []
+var screen_number := 0
+var market_notice := ""
 var ui: Control
 var arena: Node3D
 var online_players := {}
@@ -57,10 +62,9 @@ var online_finished := false
 var address_box: LineEdit
 
 func _ready() -> void:
-	load_progress()
-	if profile_choice and not valid_uid(player_uid):
-		player_uid = generate_uid()
-		save_progress()
+	# A new run deliberately starts a fresh session, as chosen by the player.
+	if FileAccess.file_exists(save_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
 	build_theme()
 	apply_audio()
 	multiplayer.peer_connected.connect(on_peer_connected)
@@ -92,17 +96,17 @@ func build_screen(kicker: String, title: String, subtitle: String) -> VBoxContai
 	ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(ui)
 	var background := ColorRect.new()
-	background.color = Color("0b111e")
+	background.color = Color("1b2427")
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.add_child(background)
 	var side := ColorRect.new()
-	side.color = Color(0.04, 0.11, 0.17, 0.64)
+	side.color = Color(0.12, 0.18, 0.17, 0.68)
 	side.anchor_left = 0.72
 	side.anchor_right = 1.0
 	side.anchor_bottom = 1.0
 	ui.add_child(side)
 	var glow := ColorRect.new()
-	glow.color = Color("08b8cf")
+	glow.color = Color("d6b67b")
 	glow.position = Vector2(66, 64)
 	glow.size = Vector2(48, 4)
 	ui.add_child(glow)
@@ -116,12 +120,13 @@ func build_screen(kicker: String, title: String, subtitle: String) -> VBoxContai
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 10)
 	margin.add_child(column)
-	column.add_child(make_label(kicker.to_upper(), 14, Color("61e2e7")))
+	column.add_child(make_label(kicker.to_upper(), 14, Color("b7d5bd")))
 	column.add_child(make_label(title, 43, Color("f4f8fc")))
 	var desc := make_label(subtitle, 17, Color("a6b6c8"))
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.custom_minimum_size = Vector2(0, 48)
 	column.add_child(desc)
+	add_intro_scene()
 	return column
 
 func make_label(value: String, font_size: int, color: Color = Color.WHITE) -> Label:
@@ -129,13 +134,13 @@ func make_label(value: String, font_size: int, color: Color = Color.WHITE) -> La
 	label.text = value
 	label.add_theme_font_size_override("font_size", font_size)
 	if font_size >= 20:
-		label.add_theme_font_override("font", load("res://assets/fonts/Orbitron.ttf"))
+		label.add_theme_font_override("font", display_font)
 	label.add_theme_color_override("font_color", color)
 	return label
 
 func button(parent: Node, title: String, action: Callable, width: int = 350) -> Button:
 	var b := Button.new()
-	b.text = title
+	b.text = title.capitalize()
 	b.custom_minimum_size = Vector2(width, 48)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	b.add_theme_font_size_override("font_size", 17)
@@ -145,21 +150,25 @@ func button(parent: Node, title: String, action: Callable, width: int = 350) -> 
 
 func build_theme() -> void:
 	ui_theme = Theme.new()
-	ui_theme.set_font("font", "Button", load("res://assets/fonts/Orbitron.ttf"))
+	display_font = FontVariation.new()
+	display_font.base_font = load("res://assets/fonts/Outfit.ttf")
+	var text_server := TextServerManager.get_primary_interface()
+	display_font.variation_opentype = {text_server.name_to_tag("wght"): 600}
+	ui_theme.set_font("font", "Button", display_font)
 	for state in ["normal", "hover", "pressed", "focus"]:
 		var style := StyleBoxFlat.new()
-		style.bg_color = Color("153247") if state == "normal" else (Color("246078") if state == "hover" else Color("1d4a60"))
+		style.bg_color = Color("35534e") if state == "normal" else (Color("55776b") if state == "hover" else Color("3e6258"))
 		style.set_corner_radius_all(12)
 		style.set_border_width_all(1)
-		style.border_color = Color("397186") if state == "normal" else Color("75e7ef")
+		style.border_color = Color("709387") if state == "normal" else Color("dbca9b")
 		style.content_margin_left = 14
 		style.content_margin_right = 14
 		ui_theme.set_stylebox(state, "Button", style)
-	ui_theme.set_color("font_color", "Button", Color("eefbff"))
+	ui_theme.set_color("font_color", "Button", Color("f9f6e8"))
 	ui_theme.set_color("font_hover_color", "Button", Color.WHITE)
 
 func show_profile_choice() -> void:
-	var col := build_screen("Welcome to Haven", "CHOOSE HOW TO PLAY", "Play as a guest or choose a player name stored on this device.")
+	var col := build_screen("Welcome to Haven", "CHOOSE HOW TO PLAY", "Play as a guest or choose a name. Each time you press Run, everything resets.")
 	add_portrait("echo")
 	col.add_child(make_label("No password or online account is needed.", 18, Color("c8dde6")))
 	button(col, "PLAY AS GUEST", func(): set_profile("Guest"))
@@ -167,7 +176,7 @@ func show_profile_choice() -> void:
 	col.add_child(make_label("Google sign-in and cloud saves are not connected.", 14, Color("9aafbc")))
 
 func show_profile_entry() -> void:
-	var col := build_screen("Local profile", "YOUR PLAYER NAME", "Your name and progress stay on this computer. This is not a password-protected account.")
+	var col := build_screen("Local profile", "YOUR PLAYER NAME", "Your name and progress last for this run only. This is not a password-protected account.")
 	profile_input = LineEdit.new()
 	profile_input.placeholder_text = "Enter a player name"
 	profile_input.max_length = 18
@@ -206,7 +215,7 @@ func add_portrait(kind: String) -> void:
 	var env := WorldEnvironment.new()
 	var setting := Environment.new()
 	setting.background_mode = Environment.BG_COLOR
-	setting.background_color = Color("14283a")
+	setting.background_color = Color("253631")
 	setting.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	setting.ambient_light_color = Color("b6dbea")
 	setting.ambient_light_energy = 1.1
@@ -226,6 +235,7 @@ func add_portrait(kind: String) -> void:
 		menu_preview.set_script(load("res://scripts/character_visual.gd"))
 		world.add_child(menu_preview)
 		menu_preview.setup(chosen_avatar, chosen_weapon, bool(equipped.get("headgear", false)))
+		menu_preview.rotation.y = PI
 	var cam := Camera3D.new()
 	cam.position = Vector3(0, 1.2, 3.1)
 	cam.fov = 40
@@ -239,9 +249,9 @@ func show_intro() -> void:
 func show_echo_dialogue(page: int) -> void:
 	var messages := [
 		"Hello, " + profile_name + ". I am ECHO, Haven's last active guide.",
-		"Haven fell silent. The arenas hold fragments of the people and places we lost.",
-		"Move with WASD, aim with your mouse, and fire to recover the echoes. Press Q to dash.",
-		"Win matches to earn coins. Find pickups and visit the market to prepare for the next mission.",
+		"Hostile AI took Haven. You are the last known human survivor; the arenas hide our lost memories.",
+		"Move with WASD, aim and fire. Sprint with SHIFT, dash with Q, and dodge roll with E.",
+		"Win matches or survive waves for coins. Follow glowing beams to collect health, shields and dash charges.",
 		"Every memory brings Haven closer to coming back. Are you ready?"
 	]
 	var col := build_screen("ECHO  /  transmission %02d of %02d" % [page + 1, messages.size()], "A MESSAGE FROM ECHO", "HAVEN RECOVERY NETWORK")
@@ -274,8 +284,13 @@ func add_intro_scene() -> void:
 	viewport.add_child(world)
 	world.build_environment(0)
 	world.build_arena(0)
+	screen_number += 1
+	var bot_names := ["Enemy_EyeDrone", "Enemy_QuadShell", "Enemy_Trilobite"]
+	var bot_index := 0
 	for point in [Vector3(-8, 4, -4), Vector3(7, 5, -8), Vector3(2, 3, 5)]:
-		var drone = load("res://assets/quaternius/Enemy_EyeDrone.gltf").instantiate()
+		var bot_name: String = bot_names[(bot_index + screen_number) % bot_names.size()]
+		bot_index += 1
+		var drone = load("res://assets/quaternius/" + bot_name + ".gltf").instantiate()
 		drone.position = point
 		drone.scale = Vector3.ONE * 1.35
 		world.add_child(drone)
@@ -289,7 +304,7 @@ func add_intro_scene() -> void:
 	intro_camera.look_at(Vector3(0, 1, 0))
 	intro_camera.current = true
 	var tint := ColorRect.new()
-	tint.color = Color(0.02, 0.05, 0.1, 0.74)
+	tint.color = Color(0.08, 0.11, 0.10, 0.78)
 	tint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(tint)
@@ -313,11 +328,18 @@ func _process(delta: float) -> void:
 
 func show_menu() -> void:
 	story_mode = false
+	survival_selected = false
 	var col := build_screen("HAVEN  /  BOUNCE BACK", "WELCOME BACK", "Ready, " + profile_name + "? The arena is waiting.")
-	add_intro_scene()
 	add_portrait("player")
 	col.add_child(make_label("%d COINS       %d VICTORIES" % [coins, wins], 17, Color("f9d17d")))
-	button(col, "PLAY VS AI  →", show_setup)
+	var play_modes := HBoxContainer.new()
+	play_modes.add_theme_constant_override("separation", 10)
+	col.add_child(play_modes)
+	button(play_modes, "VS BOTS", show_setup, 170)
+	button(play_modes, "SURVIVAL", func():
+		survival_selected = true
+		show_setup()
+	, 170)
 	button(col, "MARKET & LOADOUT", show_store)
 	button(col, "STORY MISSIONS", show_story)
 	button(col, "ONLINE MULTIPLAYER", show_online)
@@ -332,8 +354,9 @@ func show_menu() -> void:
 
 func show_story() -> void:
 	story_mode = false
+	survival_selected = false
 	var col := build_screen("The Haven archive", "STORY MISSIONS", "Recover the memories hidden across the arenas. Each victory unlocks the next signal.")
-	var titles := ["01  THE FIRST SIGNAL  ·  COURTYARD", "02  THE EMPTY PLATFORM  ·  TRANSIT", "03  GHOSTS IN THE GARDEN", "04  THE ARCHIVE VAULT", "05  A CITY RETURNS  ·  SKYLINE"]
+	var titles := ["01  THE FIRST SIGNAL  ·  AI CITADEL", "02  THE DESERT SIGNAL  ·  OUTPOST", "03  GHOSTS IN THE GARDEN", "04  THE ARCHIVE VAULT", "05  A CITY RETURNS  ·  SKYLINE"]
 	for i in range(5):
 		var stage := i
 		var unlocked := i <= story_unlocked
@@ -345,11 +368,11 @@ func show_story() -> void:
 	button(col, "BACK", show_menu)
 
 func story_brief(stage: int) -> void:
-	var titles := ["THE FIRST SIGNAL", "THE EMPTY PLATFORM", "GHOSTS IN THE GARDEN", "THE ARCHIVE VAULT", "A CITY RETURNS"]
+	var titles := ["THE FIRST SIGNAL", "THE DESERT SIGNAL", "GHOSTS IN THE GARDEN", "THE ARCHIVE VAULT", "A CITY RETURNS"]
 	var briefs := [
 		"ECHO: 'The core is awake. Recover its signal and I can open the archive.'",
-		"ECHO: 'This station should be empty. Why do I remember waiting here?'",
-		"ECHO: 'The fighters were never strangers. They are the people Haven saved.'",
+		"ECHO: 'The desert outpost has a signal, but its guardians are still active.'",
+		"ECHO: 'The AI has hidden recordings of Haven inside the garden.'",
 		"ECHO: 'The archive holds the last complete recording of Haven.'",
 		"ECHO: 'A signal from the skyline can bring the city back online.'"
 	]
@@ -360,9 +383,9 @@ func story_brief(stage: int) -> void:
 
 func show_mission_dialogue(stage: int, page: int) -> void:
 	var dialogue := [
-		["This courtyard was the heart of Haven. Its signal has just come back.", "Recover eight echoes. Follow the markers and watch for health and shield pickups."],
-		["The station carried families to safety. I can hear a voice calling through the static.", "The next signal is guarded. Win here and we may remember who was on the train."],
-		["I remember now. The fighters are echoes of the people Haven saved.", "Their memories point towards the archive beneath the old city."],
+		["The AI citadel controls Haven's defenses. Its signal has just come back.", "Recover eight echoes. Follow the markers and watch for health and shield pickups."],
+		["Survivors once crossed this desert. A signal is calling through the dust.", "The next signal is guarded. Win here and we may remember the people who escaped."],
+		["The hostile AI stored recordings of the people who lived here.", "Their memories point towards the archive beneath the old city."],
 		["The archive is still running, but its records are fragmented.", "Recover the data and I can find the city's final beacon."],
 		["The skyline beacon is ready. Every recovered echo has led us here.", "Win the last match and help Haven find its way home."]
 	]
@@ -386,7 +409,7 @@ func show_mission_dialogue(stage: int, page: int) -> void:
 	button(col, "BACK TO LEVELS", show_story)
 
 func add_option(col: VBoxContainer, title: String, values: Array, selected: int, callback: Callable) -> void:
-	col.add_child(make_label(title, 14, Color("75dde5")))
+	col.add_child(make_label(title, 14, Color("b8d5bd")))
 	var option := OptionButton.new()
 	option.custom_minimum_size = Vector2(350, 43)
 	option.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -398,17 +421,17 @@ func add_option(col: VBoxContainer, title: String, values: Array, selected: int,
 
 func show_setup() -> void:
 	story_mode = false
-	var col := build_screen("Match setup", "ENTER THE ARENA", "Pick a location and difficulty. Your current weapon: " + chosen_weapon)
-	add_option(col, "ARENA", ["Core Courtyard", "Transit Station", "Overgrown Garden", "Archive Vault", "Skyline Yard", "Random"], chosen_map, func(i): chosen_map = i)
+	var col := build_screen("Survival waves" if survival_selected else "Match setup", "ENTER THE ARENA", "Pick a location and difficulty. Your current weapon: " + chosen_weapon)
+	add_option(col, "ARENA", ["AI Citadel", "Desert Outpost", "Overgrown Garden", "Archive Vault", "Skyline Yard", "Random"], chosen_map, func(i): chosen_map = i)
 	add_option(col, "BOT DIFFICULTY", ["Easy", "Medium", "Hard"], chosen_difficulty, func(i): chosen_difficulty = i)
-	add_option(col, "YOUR FIGHTER", ["Pathfinder", "Scout", "Guardian"], chosen_avatar, func(i): chosen_avatar = i)
-	col.add_child(make_label("WASD move  ·  Mouse aim  ·  Left click fire  ·  Space jump  ·  Q dash", 15, Color("bbcbd5")))
+	add_option(col, "YOUR FIGHTER", ["Survivor", "Scout", "Runner"], chosen_avatar, func(i): chosen_avatar = i)
+	col.add_child(make_label("WASD move · mouse aim · click fire · SPACE jump · SHIFT sprint · Q dash · E roll", 15, Color("bbcbd5")))
 	button(col, "START MATCH  →", start_match)
 	button(col, "BACK", show_menu)
 
 func show_settings() -> void:
-	var col := build_screen("Preferences", "SETTINGS", "Adjust audio and mouse sensitivity. Your choices are saved on this computer.")
-	col.add_child(make_label("MASTER VOLUME", 14, Color("75dde5")))
+	var col := build_screen("Preferences", "SETTINGS", "Adjust audio and mouse sensitivity for this run.")
+	col.add_child(make_label("MASTER VOLUME", 14, Color("b8d5bd")))
 	var volume := HSlider.new()
 	volume.min_value = 0.0
 	volume.max_value = 1.0
@@ -422,7 +445,7 @@ func show_settings() -> void:
 		save_progress()
 	)
 	col.add_child(volume)
-	col.add_child(make_label("MOUSE SENSITIVITY", 14, Color("75dde5")))
+	col.add_child(make_label("MOUSE SENSITIVITY", 14, Color("b8d5bd")))
 	var sensitivity := HSlider.new()
 	sensitivity.min_value = 0.001
 	sensitivity.max_value = 0.006
@@ -445,10 +468,10 @@ func apply_audio() -> void:
 func show_online() -> void:
 	story_mode = false
 	var col := build_screen("Private match  /  port 7777", "PLAY ONLINE", "Host a match or join a friend using their IP address. The host chooses the arena.")
-	add_option(col, "HOST ARENA", ["Core Courtyard", "Transit Station", "Overgrown Garden", "Archive Vault", "Skyline Yard", "Random"], chosen_map, func(i): chosen_map = i)
-	add_option(col, "YOUR AVATAR", ["Pathfinder", "Scout", "Guardian"], chosen_avatar, func(i): chosen_avatar = i)
+	add_option(col, "HOST ARENA", ["AI Citadel", "Desert Outpost", "Overgrown Garden", "Archive Vault", "Skyline Yard", "Random"], chosen_map, func(i): chosen_map = i)
+	add_option(col, "YOUR AVATAR", ["Survivor", "Scout", "Runner"], chosen_avatar, func(i): chosen_avatar = i)
 	button(col, "HOST A MATCH", host_online)
-	col.add_child(make_label("HOST ADDRESS", 14, Color("75dde5")))
+	col.add_child(make_label("HOST ADDRESS", 14, Color("b8d5bd")))
 	address_box = LineEdit.new()
 	address_box.placeholder_text = "Host IP address, e.g. 192.168.1.10"
 	address_box.text = "127.0.0.1"
@@ -703,7 +726,7 @@ func remember_player(uid: String, display_name: String) -> void:
 
 func show_friends() -> void:
 	ensure_uid()
-	var col := build_screen("Social  /  local", "FRIENDS", "Search saved friends and recent match players by name or ID on this device.")
+	var col := build_screen("Social  /  local", "FRIENDS", "Search friends and recent match players for this run. IDs reset when the game restarts.")
 	col.add_child(make_label("YOUR NAME: %s" % profile_name, 17, Color("dceaf0")))
 	var id_row := HBoxContainer.new()
 	id_row.add_theme_constant_override("separation", 12)
@@ -768,7 +791,7 @@ func friend_index(uid: String) -> int:
 	return -1
 
 func show_friend_editor(entry: Dictionary) -> void:
-	var col := build_screen("Friends  /  local address book", "SAVE A FRIEND", "Enter the ID exactly. Names may be shared; the ID identifies the saved entry.")
+	var col := build_screen("Friends  /  local address book", "SAVE A FRIEND", "Enter the ID exactly. Names may be shared; your list lasts until the game restarts.")
 	friend_name_input = LineEdit.new()
 	friend_name_input.placeholder_text = "Friend's player name"
 	friend_name_input.text = str(entry.get("name", ""))
@@ -827,66 +850,116 @@ func join_friend(entry: Dictionary) -> void:
 	start_join(address)
 
 func show_help() -> void:
-	var col := build_screen("Haven guide", "HELP & COMMUNITY", "A fair arena is better for everyone.")
-	for line in [
-		"PLAY: WASD move · mouse aim · click fire · SPACE jump · Q dash · ESC menu.",
-		"RECOVER: Win matches, collect power-ups, and use coins in the market.",
-		"RESPECT: Be kind. No harassment, hate, threats, or bullying.",
-		"FAIR PLAY: Do not cheat, exploit bugs, impersonate others, or disrupt matches.",
-		"PRIVACY: Do not share someone else's personal information or account details.",
-		"FRIENDS: IDs and contacts are stored locally. Search covers saved and recent players.",
-		"SUPPORT: Charvik Reddy Pulluru",
-		"EMAIL: charvikreddypulluru@giis.edu.sg   |   PHONE: 85699182"
+	var col := build_screen("Haven guide", "HELP & COMMUNITY", "Find controls, common answers, and the community code of conduct.")
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(780, 340)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	col.add_child(scroll)
+	var content := VBoxContainer.new()
+	content.custom_minimum_size.x = 760
+	content.add_theme_constant_override("separation", 7)
+	scroll.add_child(content)
+	for section in [
+		["CONTROLS", "WASD move · mouse aim · click fire · SHIFT sprint · SPACE jump · Q dash · E dodge roll · ESC pause."],
+		["WHERE ARE POWER-UPS?", "Follow the glowing beams in the arena. Green restores health, blue adds shield, and gold recharges your dash."],
+		["HOW DO I GET COINS?", "Win bot or story matches, or clear a wave in Survival. Spend coins on weapons and gear in the market."],
+		["WHAT HAPPENS WHEN I RESTART?", "Each time you press Run, the game resets coins, items, story, profile, ID, and local friends."],
+		["HOW DO I PLAY WITH FRIENDS?", "Use a private host IP in Online. Friends search covers saved and recent players on this device, not all players worldwide."],
+		["CODE OF CONDUCT", "Be kind and respect other players. No harassment, hate, threats, bullying, cheating, exploits, or impersonation."],
+		["PRIVACY", "Do not share someone else's personal information or account details."],
+		["SUPPORT", "Charvik Reddy Pulluru  ·  charvikreddypulluru@giis.edu.sg  ·  85699182"]
 	]:
-		var text_line := make_label(line, 17, Color("d6e9ef"))
-		text_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		col.add_child(text_line)
+		content.add_child(make_label(section[0], 16, Color("b8d5bd")))
+		var body := make_label(section[1], 16, Color("d6e9ef"))
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.custom_minimum_size.x = 740
+		content.add_child(body)
 	button(col, "BACK", show_menu)
 
 func show_store() -> void:
-	var col := build_screen("Haven market", "MARKET & LOADOUT", "Earn coins by winning. Tap an item to buy, equip, or remove it.")
-	col.add_child(make_label("YOUR BALANCE   %d COINS" % coins, 19, Color("f9d17d")))
+	var col := build_screen("Haven market", "MARKET & LOADOUT", "Find your gear. Earn coins in bot matches, story levels, and survival waves.")
+	var status := make_label("YOUR BALANCE: %d COINS    %s" % [coins, market_notice], 17, Color("f9d17d"))
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(status)
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(700, 310)
+	scroll.custom_minimum_size = Vector2(780, 310)
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	col.add_child(scroll)
 	var items := VBoxContainer.new()
-	items.add_theme_constant_override("separation", 8)
+	items.add_theme_constant_override("separation", 9)
 	scroll.add_child(items)
-	items.add_child(make_label("WEAPONS", 16, Color("75dde5")))
+	items.add_child(make_label("WEAPONS", 16, Color("b8d5bd")))
+	var details := {"Pulse Rifle": "Balanced automatic weapon for most ranges.", "Scatter Blaster": "Wide spread; strongest up close.", "Longshot": "Accurate and powerful, with a slower shot."}
 	for weapon in COSTS.keys():
 		var name: String = weapon
-		var status: String = "EQUIPPED" if name == chosen_weapon else ("EQUIP" if name in owned else "%d COINS" % COSTS[name])
-		button(items, "%s  ·  %s" % [name.to_upper(), status], func(): select_weapon(name), 590)
-	items.add_child(make_label("EQUIPMENT  ·  BONUSES IN SOLO AND STORY", 16, Color("75dde5")))
+		var action: String = "EQUIPPED" if name == chosen_weapon else ("EQUIP" if name in owned else "%d COINS" % COSTS[name])
+		add_market_card(items, name, details[name], action, func(): select_weapon(name))
+	items.add_child(make_label("EQUIPMENT  ·  SOLO AND STORY", 16, Color("b8d5bd")))
 	for item in GEAR.keys():
 		var name: String = item
 		var slot: String = GEAR[name]["slot"]
-		var status: String = "EQUIPPED" if bool(equipped.get(slot, false)) else ("EQUIP" if name in gear_owned else "%d COINS" % GEAR[name]["cost"])
-		button(items, "%s  ·  %s" % [name.to_upper(), status], func(): select_gear(name), 590)
-		items.add_child(make_label(GEAR[name]["detail"], 14, Color("a6b6c8")))
+		var action: String = "REMOVE" if bool(equipped.get(slot, false)) else ("EQUIP" if name in gear_owned else "%d COINS" % GEAR[name]["cost"])
+		add_market_card(items, name, str(GEAR[name]["detail"]), action, func(): select_gear(name))
 	button(col, "BACK", show_menu)
+
+func add_market_card(parent: Node, name: String, detail: String, action: String, callback: Callable) -> void:
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.13, 0.19, 0.17, 0.96)
+	style.set_corner_radius_all(12)
+	style.set_border_width_all(1)
+	style.border_color = Color("708b7b")
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", style)
+	parent.add_child(panel)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	panel.add_child(row)
+	var icon := Control.new()
+	icon.set_script(load("res://scripts/market_icon.gd"))
+	icon.item = name
+	icon.custom_minimum_size = Vector2(95, 72)
+	row.add_child(icon)
+	var text := VBoxContainer.new()
+	text.custom_minimum_size = Vector2(350, 72)
+	row.add_child(text)
+	text.add_child(make_label(name.to_upper(), 18, Color("e8f7fa")))
+	var desc := make_label(detail, 14, Color("a9c0cc"))
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.add_child(desc)
+	button(row, action, callback, 170)
 
 func select_gear(item: String) -> void:
 	if not GEAR.has(item): return
 	var cost: int = GEAR[item]["cost"]
 	if item not in gear_owned:
-		if coins < cost: return
+		if coins < cost:
+			market_notice = "Not enough coins — play more matches!"
+			show_store()
+			return
 		coins -= cost
 		gear_owned.append(item)
 	var slot: String = GEAR[item]["slot"]
 	equipped[slot] = not bool(equipped.get(slot, false))
+	market_notice = "Equipped: " + item if equipped[slot] else "Removed: " + item
 	save_progress()
 	show_store()
 
 func select_weapon(weapon: String) -> void:
 	if weapon not in owned:
 		if coins < COSTS[weapon]:
+			market_notice = "Not enough coins — play more matches!"
+			show_store()
 			return
 		coins -= COSTS[weapon]
 		owned.append(weapon)
 	chosen_weapon = weapon
+	market_notice = "Equipped: " + weapon
 	save_progress()
 	show_store()
 
@@ -898,11 +971,19 @@ func start_match() -> void:
 	add_child(arena)
 	arena.avatar_index = chosen_avatar
 	arena.equipment = equipped.duplicate()
+	arena.survival_mode = survival_selected and not story_mode
+	survival_earned = 0
+	arena.wave_completed.connect(on_wave_completed)
 	arena.match_finished.connect(on_match_finished)
 	arena.return_requested.connect(show_menu)
 	var map_index := randi_range(0, 4) if chosen_map == 5 else chosen_map
 	arena.start_match(map_index, chosen_difficulty, chosen_weapon)
 	arena.human.mouse_sensitivity = aim_sensitivity
+
+func on_wave_completed(_wave: int, reward: int) -> void:
+	coins += reward
+	survival_earned += reward
+	save_progress()
 
 func on_match_finished(won: bool, score: int, reason: String) -> void:
 	var reward: int = [60, 80, 110][chosen_difficulty] if won else 0
@@ -914,12 +995,12 @@ func on_match_finished(won: bool, score: int, reason: String) -> void:
 		save_progress()
 	var title := "MEMORY RECOVERED" if won else "MATCH COMPLETE"
 	var col := build_screen("Match result", title, reason)
-	col.add_child(make_label("ELIMINATIONS   %d / 8" % score, 23))
-	col.add_child(make_label("COINS EARNED   +%d" % reward, 20, Color("f9d17d")))
+	col.add_child(make_label("ELIMINATIONS   %d" % score if survival_selected else "ELIMINATIONS   %d / 8" % score, 23))
+	col.add_child(make_label("COINS EARNED   +%d" % (survival_earned if survival_selected else reward), 20, Color("f9d17d")))
 	if won:
 		var fragments := ["ECHO: 'Someone used to call this place home.'", "ECHO: 'These voices... I think I remember them.'", "ECHO: 'The archive is still waiting for us.'", "ECHO: 'The final beacon is on the skyline.'", "ECHO: 'Haven is its people. Together, we brought it back.'"]
 		var fragment_index: int = story_stage if story_mode else (wins - 1) % fragments.size()
-		col.add_child(make_label(fragments[fragment_index], 19, Color("75dde5")))
+		col.add_child(make_label(fragments[fragment_index], 19, Color("b8d5bd")))
 	button(col, "PLAY AGAIN", start_match)
 	if story_mode:
 		if won and story_stage < 4:

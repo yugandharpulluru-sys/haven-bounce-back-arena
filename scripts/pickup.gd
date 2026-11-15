@@ -15,8 +15,8 @@ func setup(type: String, player: CharacterBody3D) -> void:
 	var color := Color("55f3b5") if kind == "health" else (Color("5baeff") if kind == "shield" else Color("ffd26b"))
 	var orb := MeshInstance3D.new()
 	var mesh := SphereMesh.new()
-	mesh.radius = 0.3
-	mesh.height = 0.6
+	mesh.radius = 0.42
+	mesh.height = 0.84
 	orb.mesh = mesh
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
@@ -32,6 +32,23 @@ func setup(type: String, player: CharacterBody3D) -> void:
 	sign.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sign.modulate = color
 	visual.add_child(sign)
+	var beam := MeshInstance3D.new()
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = 0.055
+	cylinder.bottom_radius = 0.055
+	cylinder.height = 3.5
+	beam.mesh = cylinder
+	beam.position.y = 1.45
+	var beam_mat := StandardMaterial3D.new()
+	beam_mat.albedo_color = color
+	beam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	beam.material_override = beam_mat
+	visual.add_child(beam)
+	var lamp := OmniLight3D.new()
+	lamp.light_color = color
+	lamp.light_energy = 1.3
+	lamp.omni_range = 5
+	visual.add_child(lamp)
 
 func _process(delta: float) -> void:
 	if not is_instance_valid(human):
@@ -44,6 +61,6 @@ func _process(delta: float) -> void:
 	time += delta
 	visual.rotation.y += delta
 	visual.position.y = 0.85 + sin(time * 2.5) * 0.15
-	if global_position.distance_to(human.global_position) < 1.4 and human.collect_powerup(kind):
+	if global_position.distance_to(human.global_position) < 1.8 and human.collect_powerup(kind):
 		unavailable = 15.0
 		visual.visible = false

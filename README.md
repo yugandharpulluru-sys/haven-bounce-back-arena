@@ -1,53 +1,52 @@
 # Haven: Bounce Back
 
-Haven fell silent, but its memories are still alive. Fight through five levels and help Echo recover the people and places that made the city home.
+Hostile AI has taken over Haven. As the last known human survivor, fight through different arenas, recover lost memories, and help Echo bring the city back.
 
-## Open and play
+## Open the game
 
-1. Download [Godot 4.6.3 Standard](https://godotengine.org/download/archive/4.6.3-stable/) for your computer.
-2. On GitHub, choose **Code → Download ZIP** and extract the ZIP, or clone this repository.
+1. Download [Godot 4.6.3 Standard](https://godotengine.org/download/archive/4.6.3-stable/).
+2. On GitHub, choose **Code → Download ZIP** and extract it, or clone the repository.
 3. Open Godot, choose **Import**, select `project.godot` inside the extracted folder, and choose **Import & Edit**.
-4. Wait for Godot to import the assets, then press **F5**. On first opening, choose a local player name or play as a guest, and follow Echo's introduction.
+4. Wait for the first asset import to finish, then press **F5** to run. Pick a guest or local player name and follow Echo's introduction.
 
-If you downloaded the game before this update, download and extract the latest ZIP into a new folder, then import that folder's `project.godot`. Keep the entire extracted folder together. The `.godot` cache is created locally and is not included in the repository. The first import can take a few minutes.
+If you have an older ZIP, download the latest one into a new folder and import its `project.godot`. Keep the entire extracted folder together.
 
-## Controls
+## Important: every run resets
+
+As requested for this version, **every time the game is launched from Godot, it deletes the local save and starts fresh**. Coins, weapon and equipment unlocks, story levels, settings, local name, Haven ID and the local friends list reset. Your support contact in the Help screen is part of the game and does not change. A new local ID is generated after you choose a name; share that new ID with friends each run.
+
+## Play
 
 | Control | Action |
 | --- | --- |
-| W / A / S / D | Move in third person |
+| W / A / S / D | Move in any direction |
 | Mouse | Look and aim |
-| Left mouse | Shoot |
+| Left mouse | Fire a visible pulse |
+| Shift | Sprint |
 | Space | Jump |
 | Q | Dash |
+| E | Dodge roll (brief protection and a cooldown) |
 | Esc | Match menu; pauses solo matches |
 
-Aim at opponents and recover eight echoes within three minutes. You have three lives and brief protection after respawning. Glowing pickups restore health or shields or recharge your dash. Health and shield appear on the HUD.
+Choose from three different human fighters. Find glowing beams in the arena: **green** restores health, **blue** adds shield, and **gold** recharges your dash. The health and shield indicators are at the bottom of the screen.
 
-## Levels, equipment and story
+- **Vs Bots:** pick an arena and difficulty. Recover eight echoes before time expires; you have three lives.
+- **Survival:** fight increasingly tough waves without a timer. Clear each wave to earn coins, and continue until all lives are used.
+- **Story Missions:** five playable levels unlock in order. Echo gives short briefings that you can advance with **Next**.
+- **Market & Loadout:** spend earned coins on different weapons, a shield, armor, headgear and a stronger dash. Pictures and descriptions explain each item; an unaffordable purchase displays a message. Gear bonuses and pickups work in solo and story/survival; online stats remain balanced and headgear is cosmetic.
+- **Arenas:** AI Citadel, Desert Outpost, Overgrown Garden, Archive Vault and Skyline Yard have different scenery and layouts. Choose one or select Random.
+- **Help:** controls, FAQs, a community code of conduct and support details.
 
-- **Story Missions:** five levels unlock in order, with Echo's dialogue and a Next Level option after a win.
-- **Play vs AI:** choose Core Courtyard, Transit Station, Overgrown Garden, Archive Vault, Skyline Yard, or Random, then choose bot difficulty.
-- **Market & Loadout:** win coins to buy and equip weapons, a shield, armor, headgear, and a super dash. Equipment bonuses and pickups work in solo and story matches. Online matches use balanced equipment stats; headgear remains cosmetic there.
-- **Online Multiplayer:** private host/join matches for up to four players; the host chooses the map. First to eight eliminations wins. Choose one of three soldier appearances. Online matches do not include bots.
-- **Friends:** copy your local Haven ID; add a friend by ID and name; search saved friends and recent private-match players; optionally save a host IP and join a friend.
-- **Help:** review controls and the community code of conduct.
-- **Settings:** change master volume, mouse sensitivity, and local player name.
+The UI uses a warmer palette, readable type, and animated bot backgrounds on menu pages. Fighters use imported human models and animation clips. The arenas and animation are still stylized and much simpler than a large commercial game.
 
-A guest or local player name and all coins, unlocks, progress and settings are saved on the current device. A Haven ID is generated from 128 random bits and saved with the local profile; it is not centrally registered or verified, so uniqueness across all devices cannot be guaranteed and copying a save also copies the ID. The local name is not a password-protected account and is not shared between devices. Google sign-in and cloud saves are not configured.
+### Friends and online matches
 
-The friends screen is a local address book: it can search only people you saved or encountered in a private match, not every player in the world. Adding someone is a local bookmark, not a reciprocal friend request. Players can share names, and the ID distinguishes local entries. Joining requires the host's IP address and network connectivity. Global player search, verified IDs and two-way friends require an online account service.
+The optional local name is not a password-protected account. The 128-bit random Haven ID is not centrally registered or verified, so global uniqueness cannot be guaranteed. Friends are **local bookmarks**, not reciprocal requests; search covers saved and recent private-match players on this device only. Restarting the game clears the profile, ID and friends. Global search, lasting friend lists, Google sign-in and cross-device accounts require an online account service.
 
-### Online connection
+For a private same-network match, one player chooses **Online Multiplayer → Host a Match** and shares their computer's local IP address. The other player enters it under **Host Address**. The game uses UDP port **7777**; both players need the same version, and a firewall may need to allow it. `127.0.0.1` works only for two instances on the same computer. Internet play may need router port forwarding or a networking service and has not been verified across separate networks. Play with trusted friends; this direct connection has no matchmaking, encryption or robust anti-cheat.
 
-For a same-network test, the host chooses **Online Multiplayer → Host a Match** and gives the other player the host computer's local IP address. The joining player enters it under **Host Address**. The match uses UDP port **7777**. Both players need the same project version, and a firewall may need to allow it. `127.0.0.1` works only when host and client run on the same computer. Internet play may require router port forwarding or a networking service and has not been verified across separate networks. Play with trusted friends: this direct-connect implementation does not include matchmaking, account systems, encryption, or robust anti-cheat.
+## Credits and tests
 
-## Assets and project status
+See [asset credits](docs/ASSET_CREDITS.md) for models, sounds, textures, skies and fonts. The historical design documents may describe earlier ideas rather than the current game.
 
-Models, sounds and font from third-party artists are included under their stated licences; see [asset credits](docs/ASSET_CREDITS.md). The arenas use simple architecture, and character movement/shooting use procedural animation; further art, voice, animation and gameplay polish is needed to approach a finished high-end shooter. Test the game on the team's target hardware and test online play on two devices before tournament use.
-
-The original brainstorm, roadmap and engine decision in `docs/` are historical planning documents; this README describes the current implementation.
-
-## Technical checks
-
-After opening/importing once, run `godot --headless --path . --script res://tests/smoke.gd` to exercise movement, shooting, maps, equipment, pickups, saving, local ID/friends and level unlocks. The network check in `tests/network_peer.gd` launches as separate host and client processes; it checks localhost connectivity, including visual shot messages, rather than real internet conditions.
+After importing once, run `godot --headless --path . --script res://tests/smoke.gd` to exercise match flow, movement, actions, maps, the market, pickups, survival and resets. `tests/network_peer.gd` checks host/client communication on one machine; it is not a two-device internet test.

@@ -31,3 +31,21 @@ Licence: CC0 1.0 under https://polyhaven.com/license. The floor colour and rough
 Source: https://github.com/google/fonts/tree/main/ofl/orbitron
 
 Licence: SIL Open Font License 1.1. The unmodified font and the full licence are in `assets/fonts/`.
+
+## Ultimate Animated Character Pack — Quaternius
+
+Source: https://opengameart.org/content/animated-characters-pack
+
+Licence: CC0 1.0 as stated on the source page. Three human characters were exported from the original Blender files to GLB with the included animation clips, scaled in Godot and given adjusted skin colours. Files: `assets/humans/`.
+
+## Leafy Grass, Dry Ground 01, Noon Grass and Quarry 01 — Poly Haven
+
+Sources: https://polyhaven.com/a/leafy_grass, https://polyhaven.com/a/dry_ground_01, https://polyhaven.com/a/noon_grass and https://polyhaven.com/a/quarry_01
+
+Licence: CC0 1.0 under https://polyhaven.com/license. The downloaded 1K textures and skies are in `assets/polyhaven/`.
+
+## Outfit font — Outfit Project Authors
+
+Source: https://github.com/google/fonts/tree/main/ofl/outfit
+
+Licence: SIL Open Font License 1.1. The font and licence are in `assets/fonts/`.

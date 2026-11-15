@@ -2,10 +2,11 @@ extends Node3D
 
 signal match_finished(won: bool, score: int, reason: String)
 signal return_requested
+signal wave_completed(wave: int, reward: int)
 
 const Player = preload("res://scripts/player.gd")
 const Bot = preload("res://scripts/bot.gd")
-const MAPS := ["CORE COURTYARD", "TRANSIT STATION", "OVERGROWN GARDEN", "ARCHIVE VAULT", "SKYLINE YARD"]
+const MAPS := ["AI CITADEL", "DESERT OUTPOST", "OVERGROWN GARDEN", "ARCHIVE VAULT", "SKYLINE YARD"]
 var human: CharacterBody3D
 var score := 0
 var time_left := 180.0
@@ -23,13 +24,22 @@ var avatar_index := 0
 var equipment := {}
 var hud_shield: Label
 var hud_bar: ProgressBar
+var hud_font: FontVariation
 var bot_shot_sound: AudioStreamPlayer
 var pause_layer: CanvasLayer
 var menu_open := false
 var online_mode := false
+var survival_mode := false
+var base_difficulty := 1
+var wave := 1
+var wave_kills := 0
+var wave_target := 8
+var ground_texture := "res://assets/polyhaven/concrete_diff.jpg"
+var natural_ground := false
 
 func start_match(map_index: int, difficulty: int, weapon: String) -> void:
 	accent = colors[map_index]
+	base_difficulty = difficulty
 	build_environment(map_index)
 	build_arena(map_index)
 	build_hud(MAPS[map_index], weapon)
@@ -38,7 +48,7 @@ func start_match(map_index: int, difficulty: int, weapon: String) -> void:
 	add_child(human)
 	human.health_changed.connect(update_health)
 	human.shield_changed.connect(update_shield)
-	human.player_out.connect(func(): end_match(false, "All recovery lives were used. Try again."))
+	human.player_out.connect(func(): end_match(false, "Survived to wave %d." % wave if survival_mode else "All recovery lives were used. Try again."))
 	human.setup(self, weapon, Vector3(0, 1, 13))
 	human.apply_equipment(equipment)
 	for pickup_info in [["health", Vector3(-13, 0, 10)], ["shield", Vector3(13, 0, -12)], ["dash", Vector3(0, 0, -5)]]:
@@ -58,7 +68,11 @@ func start_match(map_index: int, difficulty: int, weapon: String) -> void:
 	bot_shot_sound.stream = load("res://assets/audio/impactMetal_000.ogg")
 	bot_shot_sound.volume_db = -20
 	add_child(bot_shot_sound)
-	show_message("RECOVER 8 ECHOES TO WIN", 3.0)
+	if survival_mode:
+		hud_score.text = "WAVE 1   0 / 8"
+		show_message("SURVIVE THE WAVES", 3.0)
+	else:
+		show_message("RECOVER 8 ECHOES TO WIN", 3.0)
 
 func build_environment(index: int) -> void:
 	var env := WorldEnvironment.new()
@@ -71,19 +85,20 @@ func build_environment(index: int) -> void:
 	sky_material.ground_bottom_color = Color("131c24")
 	sky_material.ground_horizon_color = Color("53646b")
 	var panorama := PanoramaSkyMaterial.new()
-	panorama.panorama = load("res://assets/polyhaven/sunset.hdr")
+	var skies := ["sunset.hdr", "desert_sky.hdr", "grass_sky.hdr", "sunset.hdr", "sunset.hdr"]
+	panorama.panorama = load("res://assets/polyhaven/" + skies[index])
 	sky.sky_material = panorama
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("a9c4d0")
-	environment.ambient_light_energy = 0.65
+	environment.ambient_light_color = Color("c0cbb8")
+	environment.ambient_light_energy = 0.55
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.environment = environment
 	add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-50, -30, 0)
-	sun.light_color = Color("e2f1f4")
-	sun.light_energy = 1.3
+	sun.light_color = Color("fff0d6")
+	sun.light_energy = 1.05
 	sun.shadow_enabled = true
 	add_child(sun)
 
@@ -105,9 +120,13 @@ func box(pos: Vector3, size: Vector3, color: Color, solid: bool = true, glow: fl
 	mesh.mesh = shape
 	var surface := material(color, 0.35, glow)
 	if size.x > 30 and size.z > 30 and size.y < 1:
-		surface.albedo_color = color.lightened(0.45)
-		surface.albedo_texture = load("res://assets/polyhaven/concrete_diff.jpg")
-		surface.roughness_texture = load("res://assets/polyhaven/concrete_rough.jpg")
+		surface.albedo_color = (Color("799a64") if ground_texture.ends_with("grass_diff.jpg") else Color("bfa783")) if natural_ground else color.lightened(0.45)
+		surface.albedo_texture = load(ground_texture)
+		if natural_ground:
+			surface.metallic = 0.0
+			surface.roughness = 1.0
+		else:
+			surface.roughness_texture = load("res://assets/polyhaven/concrete_rough.jpg")
 		surface.uv1_scale = Vector3(10, 10, 1)
 	mesh.material_override = surface
 	if solid:
@@ -125,88 +144,108 @@ func box(pos: Vector3, size: Vector3, color: Color, solid: bool = true, glow: fl
 		add_child(mesh)
 
 func build_arena(index: int) -> void:
-	var floor_color: Color = [Color("44535e"), Color("504a4a"), Color("485c52"), Color("50465e"), Color("465366")][index]
-	var wall_color: Color = [Color("253645"), Color("34353b"), Color("2b403e"), Color("30283c"), Color("273b52")][index]
+	var floor_color: Color = [Color("44535e"), Color("ae8962"), Color("5d7952"), Color("50465e"), Color("465366")][index]
+	var wall_color: Color = [Color("253645"), Color("826648"), Color("39533b"), Color("30283c"), Color("273b52")][index]
+	natural_ground = index == 1 or index == 2
+	ground_texture = "res://assets/polyhaven/dry_diff.jpg" if index == 1 else ("res://assets/polyhaven/grass_diff.jpg" if index == 2 else "res://assets/polyhaven/concrete_diff.jpg")
 	box(Vector3(0, -0.35, 0), Vector3(50, 0.7, 50), floor_color)
-	# A grid of fine seams creates a readable architectural surface.
-	for i in range(-6, 7):
-		box(Vector3(i * 4.0, 0.015, 0), Vector3(0.035, 0.02, 49), Color("243743"), false)
-		box(Vector3(0, 0.016, i * 4.0), Vector3(49, 0.02, 0.035), Color("243743"), false)
+	if not natural_ground:
+		for i in range(-6, 7):
+			box(Vector3(i * 4.0, 0.015, 0), Vector3(0.035, 0.02, 49), Color("243743"), false)
+			box(Vector3(0, 0.016, i * 4.0), Vector3(49, 0.02, 0.035), Color("243743"), false)
+	var wall_height := 3.0 if natural_ground else 8.0
 	for side in [-1, 1]:
-		box(Vector3(side * 25, 4, 0), Vector3(1, 8, 50), wall_color)
-		box(Vector3(0, 4, side * 25), Vector3(50, 8, 1), wall_color)
-		box(Vector3(side * 24.4, 3.7, 0), Vector3(0.08, 0.12, 49), accent, false, 1.4)
-		box(Vector3(0, 3.7, side * 24.4), Vector3(49, 0.12, 0.08), accent, false, 1.4)
-		for i in [-20, -12, -4, 4, 12, 20]:
-			box(Vector3(side * 24.2, 2, i), Vector3(0.4, 4, 0.65), Color("1b2933"))
-			box(Vector3(i, 2, side * 24.2), Vector3(0.65, 4, 0.4), Color("1b2933"))
-	# The distant skyline gives the arena depth without blocking gameplay.
-	for side in [-1, 1]:
-		for i in range(-2, 3):
-			var height := 11.0 + float((i + 2) % 3) * 3.0
-			var x := float(i) * 11.0
-			box(Vector3(x, height * 0.5 - 0.2, side * 31.0), Vector3(8, height, 5), wall_color.darkened(0.25), false)
-			for window_y in [9.0, 11.0]:
-				box(Vector3(x, window_y, side * 28.4), Vector3(5.5, 0.08, 0.08), accent.darkened(0.35), false, 0.8)
+		box(Vector3(side * 25, wall_height / 2.0, 0), Vector3(1, wall_height, 50), wall_color)
+		box(Vector3(0, wall_height / 2.0, side * 25), Vector3(50, wall_height, 1), wall_color)
+		if not natural_ground:
+			box(Vector3(side * 24.4, 3.7, 0), Vector3(0.08, 0.12, 49), accent, false, 1.4)
+			box(Vector3(0, 3.7, side * 24.4), Vector3(49, 0.12, 0.08), accent, false, 1.4)
+			for i in [-20, -12, -4, 4, 12, 20]:
+				box(Vector3(side * 24.2, 2, i), Vector3(0.4, 4, 0.65), Color("1b2933"))
+				box(Vector3(i, 2, side * 24.2), Vector3(0.65, 4, 0.4), Color("1b2933"))
+	if not natural_ground:
+		for side in [-1, 1]:
+			for i in range(-2, 3):
+				var height := 11.0 + float((i + 2) % 3) * 3.0
+				var x := float(i) * 11.0
+				box(Vector3(x, height * 0.5 - 0.2, side * 31.0), Vector3(8, height, 5), wall_color.darkened(0.25), false)
+				box(Vector3(x, 9.0, side * 28.4), Vector3(5.5, 0.08, 0.08), accent.darkened(0.35), false, 0.8)
 	var cover := []
 	match index:
-		0:
-			cover = [Vector3(-9, 0, -4), Vector3(9, 0, -4), Vector3(-9, 0, 7), Vector3(9, 0, 7), Vector3(0, 0, 0)]
-		1:
-			cover = [Vector3(-11, 0, -5), Vector3(11, 0, -5), Vector3(-5, 0, 5), Vector3(5, 0, 5), Vector3(0, 0, -11)]
-		2:
-			cover = [Vector3(-11, 0, 1), Vector3(11, 0, 1), Vector3(-5, 0, -8), Vector3(5, 0, -8), Vector3(0, 0, 6)]
-		3:
-			cover = [Vector3(-12, 0, -7), Vector3(12, 0, -7), Vector3(-6, 0, 5), Vector3(6, 0, 5), Vector3(0, 0, -1)]
-		4:
-			cover = [Vector3(-12, 0, 6), Vector3(12, 0, 6), Vector3(-6, 0, -6), Vector3(6, 0, -6), Vector3(0, 0, 1)]
+		0: cover = [Vector3(-9, 0, -4), Vector3(9, 0, -4), Vector3(-9, 0, 7), Vector3(9, 0, 7), Vector3(0, 0, 0)]
+		1: cover = [Vector3(-11, 0, -5), Vector3(11, 0, -5), Vector3(-5, 0, 5), Vector3(5, 0, 5), Vector3(0, 0, -11)]
+		2: cover = [Vector3(-11, 0, 1), Vector3(11, 0, 1), Vector3(-5, 0, -8), Vector3(5, 0, -8), Vector3(0, 0, 6)]
+		3: cover = [Vector3(-12, 0, -7), Vector3(12, 0, -7), Vector3(-6, 0, 5), Vector3(6, 0, 5), Vector3(0, 0, -1)]
+		4: cover = [Vector3(-12, 0, 6), Vector3(12, 0, 6), Vector3(-6, 0, -6), Vector3(6, 0, -6), Vector3(0, 0, 1)]
 	cover.append_array([Vector3(-19, 0, -3), Vector3(19, 0, 3)])
 	for point in cover:
-		box(point + Vector3(0, 1, 0), Vector3(3.0, 2.0, 2.0), wall_color.lightened(0.12))
-		box(point + Vector3(0, 2.04, 0), Vector3(3.1, 0.08, 2.1), accent.darkened(0.35), false, 0.5)
-		box(point + Vector3(0, 0.45, 1.02), Vector3(1.8, 0.06, 0.03), accent, false, 1.0)
-	# A central light tower establishes a landmark without blocking the whole map.
-	for point in [Vector3(-15, 0, -15), Vector3(15, 0, -15), Vector3(-15, 0, 15), Vector3(15, 0, 15)]:
-		box(point + Vector3(0, 2, 0), Vector3(0.6, 4, 0.6), wall_color.darkened(0.15))
-		box(point + Vector3(0, 4.15, 0), Vector3(1.2, 0.15, 1.2), accent, false, 2.0)
-		var lamp := OmniLight3D.new()
-		lamp.position = point + Vector3(0, 4, 0)
-		lamp.light_color = accent
-		lamp.light_energy = 0.6
-		lamp.omni_range = 9
-		add_child(lamp)
-	var barrel_scene = load("res://assets/quaternius/Prop_Barrel1.gltf")
-	if barrel_scene:
-		for p in [Vector3(-13, 0, -3), Vector3(13, 0, 5), Vector3(-3, 0, -15)]:
-			var barrel = barrel_scene.instantiate()
-			barrel.position = p
-			add_child(barrel)
-	if index == 0:
-		# Core tower and conduits create a recognizable central skyline.
+		if natural_ground:
+			add_boulder(point, Color("a98b66") if index == 1 else Color("717e6d"), Vector3(1.7, 1.05, 1.3))
+		else:
+			box(point + Vector3(0, 1, 0), Vector3(3.0, 2.0, 2.0), wall_color.lightened(0.12))
+			box(point + Vector3(0, 2.04, 0), Vector3(3.1, 0.08, 2.1), accent.darkened(0.35), false, 0.5)
+	if index == 1:
+		# Stone ruins and sandstone outcrops give the desert a distinct silhouette.
+		for x in [-18, -12, 12, 18]:
+			box(Vector3(x, 2.4, -21), Vector3(1.2, 4.8, 1.2), Color("c5a77d"))
+			add_boulder(Vector3(x, 0, 21), Color("bd9a70"), Vector3(2.2, 1.4, 1.8))
+		box(Vector3(-15, 4.9, -21), Vector3(7, 0.5, 1.4), Color("b39370"))
+		box(Vector3(15, 4.9, -21), Vector3(7, 0.5, 1.4), Color("b39370"))
+	elif index == 2:
+		for x in [-21, -14, 0, 14, 21]:
+			add_tree(Vector3(x, 0, -22))
+			add_tree(Vector3(x, 0, 22))
+		for z in [-14, 0, 14]:
+			add_tree(Vector3(-22, 0, z))
+			add_tree(Vector3(22, 0, z))
+	elif index == 0:
 		box(Vector3(0, 4, -18), Vector3(5, 8, 1), wall_color.darkened(0.2))
 		box(Vector3(0, 4.8, -17.4), Vector3(0.28, 5, 0.08), accent, false, 2.0)
 		box(Vector3(0, 7.5, -17.4), Vector3(3.8, 0.15, 0.08), accent, false, 1.4)
-	elif index == 1:
-		# Station canopy and parallel platform strips.
-		for x in [-14, 14]:
-			box(Vector3(x, 5.2, 0), Vector3(2.4, 0.3, 34), wall_color.darkened(0.15))
-			box(Vector3(x, 0.03, 0), Vector3(0.12, 0.03, 36), accent, false, 0.8)
-		for z in [-12, 0, 12]:
-			box(Vector3(0, 5.4, z), Vector3(30, 0.25, 0.6), wall_color)
 	elif index == 3:
 		for x in [-14, -7, 7, 14]:
 			box(Vector3(x, 2.2, -16), Vector3(1.6, 4.4, 1.0), wall_color.lightened(0.2))
 			box(Vector3(x, 2.2, -15.4), Vector3(1.2, 2.6, 0.08), accent, false, 1.1)
-	elif index == 4:
+	else:
 		for x in [-15, 15]:
 			box(Vector3(x, 4.4, 0), Vector3(1.0, 0.3, 35), wall_color.lightened(0.1))
-			for z in [-12, 0, 12]:
-				box(Vector3(x, 2.3, z), Vector3(0.7, 4.5, 0.7), wall_color)
-	if index == 2:
-		for x in [-15, -8, 8, 15]:
-			box(Vector3(x, 0.3, -17), Vector3(2.1, 0.6, 1), Color("344b35"))
-			for n in range(4):
-				box(Vector3(x + n * 0.4 - 0.6, 1.0, -17), Vector3(0.12, 1.1, 0.12), Color("699a58"), false)
+			for z in [-12, 0, 12]: box(Vector3(x, 2.3, z), Vector3(0.7, 4.5, 0.7), wall_color)
+	for point in [Vector3(-15, 0, -15), Vector3(15, 0, -15), Vector3(-15, 0, 15), Vector3(15, 0, 15)]:
+		if not natural_ground:
+			box(point + Vector3(0, 2, 0), Vector3(0.6, 4, 0.6), wall_color.darkened(0.15))
+			box(point + Vector3(0, 4.15, 0), Vector3(1.2, 0.15, 1.2), accent, false, 2.0)
+
+func add_boulder(point: Vector3, color: Color, size: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.position = point + Vector3(0, size.y * 0.75, 0)
+	add_child(body)
+	var mesh := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 1
+	sphere.height = 2
+	sphere.radial_segments = 8
+	sphere.rings = 5
+	mesh.mesh = sphere
+	mesh.scale = size
+	mesh.rotation.y = point.x * 0.11
+	mesh.material_override = material(color.darkened(0.25))
+	body.add_child(mesh)
+	var collision := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = size * 1.5
+	collision.shape = shape
+	body.add_child(collision)
+
+func add_tree(point: Vector3) -> void:
+	box(point + Vector3(0, 2, 0), Vector3(0.6, 4.0, 0.6), Color("5f4935"))
+	var crown := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 1.7
+	sphere.height = 3.0
+	crown.mesh = sphere
+	crown.position = point + Vector3(0, 4.5, 0)
+	crown.material_override = material(Color("426b3b"))
+	add_child(crown)
 
 func build_hud(map_title: String, weapon: String) -> void:
 	var layer := CanvasLayer.new()
@@ -296,18 +335,23 @@ func build_hud(map_title: String, weapon: String) -> void:
 	hud_message.offset_top = 95
 	hud_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(hud_message)
-	var help := hud_label("WASD MOVE   SPACE JUMP   Q DASH   ESC MATCH MENU", 12, Color("a8bcc7"))
+	var help := hud_label("WASD MOVE  SHIFT SPRINT  SPACE JUMP  Q DASH  E ROLL  ESC MENU", 12, Color("a8bcc7"))
 	help.anchor_left = 0.5
 	help.anchor_right = 0.5
 	help.anchor_top = 1
 	help.anchor_bottom = 1
-	help.offset_left = -205
+	help.offset_left = -270
 	help.offset_top = -25
 	root.add_child(help)
 
 func hud_label(value: String, size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.text = value
+	if hud_font == null:
+		hud_font = FontVariation.new()
+		hud_font.base_font = load("res://assets/fonts/Outfit.ttf")
+		hud_font.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 600}
+	l.add_theme_font_override("font", hud_font)
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_color_override("font_shadow_color", Color.BLACK)
@@ -318,11 +362,14 @@ func hud_label(value: String, size: int, color: Color) -> Label:
 func _process(delta: float) -> void:
 	if ended or not is_instance_valid(hud_clock):
 		return
-	time_left -= delta
-	var seconds := maxi(0, ceili(time_left))
-	hud_clock.text = "%02d:%02d" % [seconds / 60, seconds % 60]
-	if time_left <= 0:
-		end_match(false, "The signal faded before enough echoes were recovered.")
+	if survival_mode:
+		hud_clock.text = "ENDLESS"
+	else:
+		time_left -= delta
+		var seconds := maxi(0, ceili(time_left))
+		hud_clock.text = "%02d:%02d" % [seconds / 60, seconds % 60]
+		if time_left <= 0:
+			end_match(false, "The signal faded before enough echoes were recovered.")
 	message_time -= delta
 	if message_time <= 0:
 		hud_message.text = ""
@@ -372,10 +419,26 @@ func bot_defeated(_pos: Vector3) -> void:
 	if ended:
 		return
 	score += 1
-	hud_score.text = "ECHOES  %d / 8" % score
-	show_message("ECHO RECOVERED", 0.8)
-	if score >= 8:
-		end_match(true, "Haven remembers a little more because of you.")
+	if survival_mode:
+		wave_kills += 1
+		if wave_kills >= wave_target:
+			var cleared := wave
+			var reward := 30 + mini(cleared, 20) * 5
+			wave += 1
+			wave_kills = 0
+			wave_target = mini(24, 8 + (wave - 1) * 2)
+			for bot in get_tree().get_nodes_in_group("bots"):
+				if bot.get_parent() == self:
+					bot.difficulty = mini(2, base_difficulty + int((wave - 1) / 3))
+					bot.max_health = mini(180, 100 + (wave - 1) * 5)
+			wave_completed.emit(cleared, reward)
+			show_message("WAVE %d CLEAR  +%d COINS" % [cleared, reward], 2.0)
+		hud_score.text = "WAVE %d   %d / %d" % [wave, wave_kills, wave_target]
+	else:
+		hud_score.text = "ECHOES  %d / 8" % score
+		show_message("ECHO RECOVERED", 0.8)
+		if score >= 8:
+			end_match(true, "Haven remembers a little more because of you.")
 
 func bot_shot(from: Vector3, to: Vector3) -> void:
 	spawn_pulse(from, to, Color("ff846e"))

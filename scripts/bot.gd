@@ -3,6 +3,7 @@ extends CharacterBody3D
 var arena: Node3D
 var player: CharacterBody3D
 var health := 100
+var max_health := 100
 var difficulty := 1
 var attack_timer := 0.0
 var move_timer := 0.0
@@ -108,7 +109,7 @@ func respawn() -> void:
 		return
 	global_position = home
 	velocity = Vector3.ZERO
-	health = 100
+	health = max_health
 	alive = true
 	visible = true
 	collision_layer = 1

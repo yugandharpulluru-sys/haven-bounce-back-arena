@@ -18,6 +18,7 @@ var lives := 3
 var fire_timer := 0.0
 var dash_timer := 0.0
 var dash_cooldown := 0.0
+var roll_cooldown := 0.0
 var dash_direction := Vector3.ZERO
 var mouse_sensitivity := 0.0022
 var sound: AudioStreamPlayer
@@ -66,6 +67,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			arena.toggle_pause()
+		elif event.keycode == KEY_E and roll_cooldown <= 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			perform_roll()
 		elif event.keycode == KEY_Q and dash_cooldown <= 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			var v := movement_input()
 			dash_direction = v if v.length() > 0.1 else -global_basis.z
@@ -92,8 +95,9 @@ func _physics_process(delta: float) -> void:
 	fire_timer = maxf(0.0, fire_timer - delta)
 	dash_timer = maxf(0.0, dash_timer - delta)
 	dash_cooldown = maxf(0.0, dash_cooldown - delta)
+	roll_cooldown = maxf(0.0, roll_cooldown - delta)
 	var dir := movement_input() if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Vector3.ZERO
-	var speed := 7.0
+	var speed := 10.0 if Input.is_key_pressed(KEY_SHIFT) else 7.0
 	if dash_timer > 0:
 		dir = dash_direction
 		speed = 23.0 if super_dash else 17.0
@@ -105,11 +109,20 @@ func _physics_process(delta: float) -> void:
 		velocity.y = 8.0
 	move_and_slide()
 	if is_instance_valid(character):
-		character.animate_motion(delta, Vector2(velocity.x, velocity.z).length() / 7.0)
+		character.animate_motion(delta, Vector2(velocity.x, velocity.z).length() / 7.0, is_on_floor())
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and fire_timer <= 0:
 		fire()
 	if position.y < -10:
 		take_damage(1000)
+
+func perform_roll() -> void:
+	var direction := movement_input()
+	dash_direction = direction if direction.length() > 0.1 else -global_basis.z
+	dash_timer = 0.36
+	roll_cooldown = 2.0
+	invulnerability = maxf(invulnerability, 0.25)
+	character.roll_animation()
+	arena.show_message("DODGE ROLL", 0.7)
 
 func fire() -> void:
 	var pellets := 1
