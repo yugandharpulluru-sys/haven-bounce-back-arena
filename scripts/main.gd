@@ -4,6 +4,13 @@ const Arena = preload("res://scripts/arena.gd")
 const OnlineArena = preload("res://scripts/online_arena.gd")
 const SAVE_PATH := "user://haven_save.cfg"
 var save_path := SAVE_PATH
+var accounts = preload("res://scripts/local_accounts.gd").new()
+var signed_in := false
+var login_name := ""
+var password_input: LineEdit
+var confirm_input: LineEdit
+var account_error: Label
+var save_notice := ""
 const COSTS := {"Pulse Rifle": 0, "Scatter Blaster": 80, "Longshot": 140}
 const GEAR := {
 	"Kinetic Shield": {"cost": 90, "slot": "shield", "detail": "Start solo matches with 50 shield"},
@@ -62,9 +69,6 @@ var online_finished := false
 var address_box: LineEdit
 
 func _ready() -> void:
-	# A new run deliberately starts a fresh session, as chosen by the player.
-	if FileAccess.file_exists(save_path):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
 	build_theme()
 	apply_audio()
 	multiplayer.peer_connected.connect(on_peer_connected)
@@ -168,15 +172,106 @@ func build_theme() -> void:
 	ui_theme.set_color("font_hover_color", "Button", Color.WHITE)
 
 func show_profile_choice() -> void:
-	var col := build_screen("Welcome to Haven", "CHOOSE HOW TO PLAY", "Play as a guest or choose a name. Each time you press Run, everything resets.")
+	var col := build_screen("Welcome to Haven", "YOUR NEXT CHAPTER", "Sign in to continue your progress, create an account, or jump in as a guest.")
 	add_portrait("echo")
-	col.add_child(make_label("No password or online account is needed.", 18, Color("c8dde6")))
-	button(col, "PLAY AS GUEST", func(): set_profile("Guest"))
-	button(col, "CREATE LOCAL PLAYER NAME", show_profile_entry, 480)
-	col.add_child(make_label("Google sign-in and cloud saves are not connected.", 14, Color("9aafbc")))
+	button(col, "SIGN IN", func(): show_account_form(false))
+	button(col, "SIGN UP", func(): show_account_form(true))
+	button(col, "PLAY AS GUEST", start_guest)
+	col.add_child(make_label("Accounts and progress are saved on this computer. Guest progress is temporary.", 16, Color("c8dde6")))
+	col.add_child(make_label("No email required. Google sign-in and cloud saves are not connected.", 14, Color("9aafbc")))
+
+func show_account_form(create: bool) -> void:
+	var col := build_screen("Account on this computer", "CREATE ACCOUNT" if create else "WELCOME BACK", "Choose a unique password for this game. Local passwords cannot be recovered." if create else "Enter your account username and password to restore your progress.")
+	profile_input = account_field(col, "Username", false)
+	password_input = account_field(col, "Password (at least 8 characters)", true)
+	if create: confirm_input = account_field(col, "Confirm password", true)
+	account_error = make_label("", 16, Color("ffb6a0"))
+	col.add_child(account_error)
+	button(col, "CREATE ACCOUNT" if create else "SIGN IN", func():
+		if create and password_input.text != confirm_input.text:
+			account_error.text = "The passwords do not match."
+			return
+		var error := open_account(profile_input.text, password_input.text, create)
+		if not error.is_empty(): account_error.text = error
+	)
+	button(col, "BACK", show_profile_choice)
+	profile_input.grab_focus()
+
+func account_field(col: VBoxContainer, placeholder: String, secret: bool) -> LineEdit:
+	var field := LineEdit.new()
+	field.placeholder_text = placeholder
+	field.secret = secret
+	field.max_length = 128 if secret else 18
+	field.custom_minimum_size = Vector2(430, 50)
+	field.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	field.add_theme_font_size_override("font_size", 19)
+	col.add_child(field)
+	return field
+
+func reset_session() -> void:
+	coins = 0
+	wins = 0
+	story_unlocked = 0
+	story_mode = false
+	survival_selected = false
+	survival_earned = 0
+	story_stage = 0
+	owned = ["Pulse Rifle"]
+	chosen_weapon = "Pulse Rifle"
+	gear_owned = []
+	equipped = {"shield": false, "armor": false, "headgear": false, "dash": false}
+	profile_choice = false
+	profile_name = "Guest"
+	player_uid = ""
+	friends = []
+	recent_players = []
+	chosen_avatar = 0
+	chosen_map = 0
+	chosen_difficulty = 1
+	audio_level = 0.8
+	aim_sensitivity = 0.0022
+	market_notice = ""
+	signed_in = false
+	login_name = ""
+	save_notice = ""
+
+func open_account(username: String, password: String, create: bool) -> String:
+	var error: String = accounts.create_account(username, password) if create else accounts.verify(username, password)
+	if not error.is_empty(): return error
+	reset_session()
+	signed_in = true
+	login_name = username.strip_edges()
+	save_path = accounts.progress_path(login_name)
+	profile_name = login_name
+	profile_choice = true
+	if not create:
+		var check_save := ConfigFile.new()
+		if FileAccess.file_exists(save_path) and check_save.load(save_path) != OK:
+			reset_session()
+			return "Your progress file could not be read. Restore it from a backup before playing."
+		load_progress()
+	if not valid_uid(player_uid): player_uid = generate_uid()
+	save_progress()
+	apply_audio()
+	if create: show_intro()
+	else: show_menu()
+	return ""
+
+func start_guest() -> void:
+	reset_session()
+	apply_audio()
+	set_profile("Guest")
+
+func sign_out() -> void:
+	save_progress()
+	if not save_notice.is_empty():
+		show_menu()
+		return
+	reset_session()
+	show_profile_choice()
 
 func show_profile_entry() -> void:
-	var col := build_screen("Local profile", "YOUR PLAYER NAME", "Your name and progress last for this run only. This is not a password-protected account.")
+	var col := build_screen("Local profile", "YOUR PLAYER NAME", "Change your display name. Your sign-in username stays the same.")
 	profile_input = LineEdit.new()
 	profile_input.placeholder_text = "Enter a player name"
 	profile_input.max_length = 18
@@ -218,12 +313,13 @@ func add_portrait(kind: String) -> void:
 	setting.background_color = Color("253631")
 	setting.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	setting.ambient_light_color = Color("b6dbea")
-	setting.ambient_light_energy = 1.1
+	setting.ambient_light_energy = 0.65
 	env.environment = setting
 	world.add_child(env)
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-35, -30, 0)
-	light.light_energy = 1.4
+	light.light_energy = 0.85
+	light.light_color = Color("ffead8")
 	world.add_child(light)
 	if kind == "echo":
 		menu_preview = load("res://assets/quaternius/Enemy_EyeDrone.gltf").instantiate()
@@ -313,7 +409,9 @@ func add_intro_scene() -> void:
 
 func _process(delta: float) -> void:
 	if is_instance_valid(menu_preview):
-		menu_preview.rotation.y += delta * 0.24
+		if menu_preview.has_method("animate_motion"):
+			menu_preview.rotation.y = PI + 0.12 + sin(intro_time * 0.45) * 0.08
+		else: menu_preview.rotation.y += delta * 0.24
 		if menu_preview.has_method("animate_motion"):
 			menu_preview.animate_motion(delta, 0.0)
 	if is_instance_valid(intro_camera):
@@ -332,6 +430,7 @@ func show_menu() -> void:
 	survival_selected = false
 	var col := build_screen("HAVEN  /  BOUNCE BACK", "WELCOME BACK", "Ready, " + profile_name + "? The arena is waiting.")
 	add_portrait("player")
+	if not save_notice.is_empty(): col.add_child(make_label(save_notice, 16, Color("ffb6a0")))
 	col.add_child(make_label("%d COINS       %d VICTORIES" % [coins, wins], 17, Color("f9d17d")))
 	var play_modes := HBoxContainer.new()
 	play_modes.add_theme_constant_override("separation", 10)
@@ -431,7 +530,8 @@ func show_setup() -> void:
 	button(col, "BACK", show_menu)
 
 func show_settings() -> void:
-	var col := build_screen("Preferences", "SETTINGS", "Adjust audio and mouse sensitivity for this run.")
+	var col := build_screen("Preferences", "SETTINGS", "Adjust your controls. Signed-in accounts save these settings.")
+	col.add_child(make_label("Signed in as " + login_name if signed_in else "Guest session · progress is temporary", 16, Color("c8dde6")))
 	col.add_child(make_label("MASTER VOLUME", 14, Color("b8d5bd")))
 	var volume := HSlider.new()
 	volume.min_value = 0.0
@@ -459,7 +559,8 @@ func show_settings() -> void:
 		save_progress()
 	)
 	col.add_child(sensitivity)
-	button(col, "CHANGE PLAYER NAME", show_profile_entry, 440)
+	button(col, "CHANGE DISPLAY NAME", show_profile_entry, 440)
+	button(col, "SIGN OUT" if signed_in else "END GUEST SESSION", sign_out, 440)
 	button(col, "BACK", show_menu)
 
 func apply_audio() -> void:
@@ -638,7 +739,7 @@ func send_online_shot(from: Vector3, to: Vector3) -> void:
 	if multiplayer.is_server(): _relay_shot.rpc(1, from, to)
 	else: _online_shot.rpc_id(1, from, to)
 
-@rpc("any_peer", "call_remote", "unreliable")
+@rpc("any_peer", "call_remote", "reliable")
 func _online_shot(from: Vector3, to: Vector3) -> void:
 	if not multiplayer.is_server() or not online_active: return
 	var id := multiplayer.get_remote_sender_id()
@@ -646,7 +747,7 @@ func _online_shot(from: Vector3, to: Vector3) -> void:
 	if is_instance_valid(arena): arena.show_remote_shot(id, from, to)
 	_relay_shot.rpc(id, from, to)
 
-@rpc("authority", "call_remote", "unreliable")
+@rpc("authority", "call_remote", "reliable")
 func _relay_shot(id: int, from: Vector3, to: Vector3) -> void:
 	if id != multiplayer.get_unique_id() and is_instance_valid(arena) and arena.has_method("show_remote_shot"):
 		arena.show_remote_shot(id, from, to)
@@ -727,7 +828,7 @@ func remember_player(uid: String, display_name: String) -> void:
 
 func show_friends() -> void:
 	ensure_uid()
-	var col := build_screen("Social  /  local", "FRIENDS", "Search friends and recent match players for this run. IDs reset when the game restarts.")
+	var col := build_screen("Social  /  local", "FRIENDS", "Signed-in accounts keep friends and their own ID on this computer. Guest IDs are temporary.")
 	col.add_child(make_label("YOUR NAME: %s" % profile_name, 17, Color("dceaf0")))
 	var id_row := HBoxContainer.new()
 	id_row.add_theme_constant_override("separation", 12)
@@ -865,7 +966,7 @@ func show_help() -> void:
 		["CONTROLS", "WASD move · mouse aim · click fire · SHIFT sprint · SPACE jump · Q dash · E dodge roll · ESC pause."],
 		["WHERE ARE POWER-UPS?", "Follow the glowing beams in the arena. Green restores health, blue adds shield, and gold recharges your dash."],
 		["HOW DO I GET COINS?", "Win bot or story matches, or clear a wave in Survival. Spend coins on weapons and gear in the market."],
-		["WHAT HAPPENS WHEN I RESTART?", "Each time you press Run, the game resets coins, items, story, profile, ID, and local friends."],
+		["WHAT HAPPENS WHEN I RESTART?", "Sign in to keep your name, coins, items, story, ID, friends and settings on this computer. Guest sessions reset when closed."],
 		["HOW DO I PLAY WITH FRIENDS?", "Use a private host IP in Online. Friends search covers saved and recent players on this device, not all players worldwide."],
 		["CODE OF CONDUCT", "Be kind and respect other players. No harassment, hate, threats, bullying, cheating, exploits, or impersonation."],
 		["PRIVACY", "Do not share someone else's personal information or account details."],
@@ -1010,6 +1111,7 @@ func on_match_finished(won: bool, score: int, reason: String) -> void:
 	button(col, "HOME", show_menu)
 
 func save_progress() -> void:
+	if not signed_in: return
 	var config := ConfigFile.new()
 	config.set_value("progress", "coins", coins)
 	config.set_value("progress", "wins", wins)
@@ -1026,12 +1128,21 @@ func save_progress() -> void:
 	config.set_value("social", "recent", recent_players)
 	config.set_value("settings", "volume", audio_level)
 	config.set_value("settings", "sensitivity", aim_sensitivity)
-	config.save(save_path)
+	config.set_value("progress", "map", chosen_map)
+	config.set_value("progress", "difficulty", chosen_difficulty)
+	var pending := save_path + ".tmp"
+	var error := config.save(pending)
+	if error == OK: error = DirAccess.rename_absolute(pending, save_path)
+	save_notice = "" if error == OK else "Progress could not be saved. Check disk space and permissions."
+	if error != OK: push_error(save_notice)
 
 func load_progress() -> void:
+	if not signed_in: return
 	var config := ConfigFile.new()
 	if config.load(save_path) != OK:
 		return
+	chosen_map = clampi(int(config.get_value("progress", "map", 0)), 0, 4)
+	chosen_difficulty = clampi(int(config.get_value("progress", "difficulty", 1)), 0, 2)
 	coins = maxi(0, int(config.get_value("progress", "coins", 0)))
 	wins = maxi(0, int(config.get_value("progress", "wins", 0)))
 	story_unlocked = clampi(int(config.get_value("progress", "story_unlocked", 0)), 0, 4)
@@ -1056,3 +1167,9 @@ func load_progress() -> void:
 	chosen_weapon = str(config.get_value("progress", "weapon", "Pulse Rifle"))
 	if chosen_weapon not in owned or not COSTS.has(chosen_weapon):
 		chosen_weapon = "Pulse Rifle"
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST: save_progress()
+
+func _exit_tree() -> void:
+	save_progress()

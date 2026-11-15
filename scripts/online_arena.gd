@@ -59,6 +59,7 @@ func show_remote_shot(id: int, from: Vector3, to: Vector3) -> void:
 	remote_shots_seen += 1
 	if remotes.has(id):
 		remotes[id].show_fire()
+	spawn_muzzle(from, (to-from).normalized(), Color("6eeaff"))
 	spawn_pulse(from, to)
 
 func request_hit(id: int, amount: int) -> void:

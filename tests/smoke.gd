@@ -20,14 +20,15 @@ func run() -> void:
 	old_save.set_value("profile", "chosen", true)
 	old_save.save(scene.save_path)
 	root.add_child(scene)
-	check(scene.coins == 0 and not scene.profile_choice and not FileAccess.file_exists(scene.save_path), "new run resets profile and progress")
+	check(scene.coins == 0 and not scene.profile_choice and FileAccess.file_exists(scene.save_path), "opening game preserves saves and waits for sign-in")
 	scene.coins = 0
 	scene.wins = 0
 	scene.owned = ["Pulse Rifle"]
 	scene.chosen_weapon = "Pulse Rifle"
 	await process_frame
 	check(is_instance_valid(scene.ui), "opening screen loads")
-	scene.set_profile("Test Runner")
+	scene.accounts.directory = "user://smoke_accounts_" + str(Time.get_ticks_usec())
+	check(scene.open_account("Test Runner", "test-only-password", true).is_empty(), "local account signs up")
 	check(scene.profile_choice and scene.profile_name == "Test Runner" and scene.valid_uid(scene.player_uid), "local player name and ID are saved")
 	var generated := {}
 	for sample in range(100): generated[scene.generate_uid()] = true
@@ -173,5 +174,9 @@ func run() -> void:
 	scene.load_progress()
 	check(scene.chosen_weapon == "Scatter Blaster" and scene.equipped["shield"] and scene.profile_name == "Test Runner" and scene.valid_uid(scene.player_uid) and scene.friend_index(id_one) >= 0, "in-session save contains progress, gear, ID and friends")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(scene.save_path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(scene.accounts.credential_path("Test Runner")))
+	scene.signed_in = false
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(scene.accounts.directory))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://haven_smoke_test.cfg"))
 	print("SMOKE TEST ", "FAILED" if failed else "PASSED")
 	quit(1 if failed else 0)

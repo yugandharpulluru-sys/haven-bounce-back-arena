@@ -11,9 +11,13 @@ Hostile AI has taken over Haven. As the last known human survivor, fight through
 
 If you have an older ZIP, download the latest one into a new folder and import its `project.godot`. Keep the entire extracted folder together.
 
-## Important: every run resets
+## Accounts and saved progress
 
-As requested for this version, **every time the game is launched from Godot, it deletes the local save and starts fresh**. Coins, weapon and equipment unlocks, story levels, settings, local name, Haven ID and the local friends list reset. Your support contact in the Help screen is part of the game and does not change. A new local ID is generated after you choose a name; share that new ID with friends each run.
+Choose **Sign up**, **Sign in**, or **Play as guest** when the game opens. Accounts are local to this computer, not cloud accounts. Sign up with a username and a game-specific password of at least eight characters; sign in after restarting to restore your display name, coins, unlocks, gear, story progress, character, ID, friends and settings. Account usernames are unique without regard to letter case; display names can be changed separately. Settings contains **Sign out**.
+
+Guest play is temporary and cannot overwrite account progress. Launching the game no longer deletes saved progress. Passwords are stored as salted PBKDF2-HMAC-SHA256 verifiers, not plaintext. There is no email recovery or cross-device sync; keep your game-specific password somewhere safe. Local files can be modified by someone with access to your computer; this is not server authentication or anti-cheat.
+
+Saves live in Godot's user-data folder under `haven_accounts`. Back up that entire directory to preserve account credentials and progress. Saves are written through a temporary file before replacing the previous save. A damaged save produces an error instead of silently resetting progress.
 
 ## Play
 
@@ -41,7 +45,7 @@ The UI uses a warmer palette, readable type, and animated bot backgrounds on men
 
 ### Friends and online matches
 
-The optional local name is not a password-protected account. The 128-bit random Haven ID is not centrally registered or verified, so global uniqueness cannot be guaranteed. Friends are **local bookmarks**, not reciprocal requests; search covers saved and recent private-match players on this device only. Restarting the game clears the profile, ID and friends. Global search, lasting friend lists, Google sign-in and cross-device accounts require an online account service.
+Signed-in accounts keep a stable 128-bit random Haven ID and local friend bookmarks. IDs are not centrally registered, so global uniqueness cannot be guaranteed. Friends are **local bookmarks**, not reciprocal requests; search covers saved and recent private-match players on this device only. Guest profiles and friends are temporary. Global search, Google sign-in and cross-device accounts require an online account service.
 
 For a private same-network match, one player chooses **Online Multiplayer → Host a Match** and shares their computer's local IP address. The other player enters it under **Host Address**. The game uses UDP port **7777**; both players need the same version, and a firewall may need to allow it. `127.0.0.1` works only for two instances on the same computer. Internet play may need router port forwarding or a networking service and has not been verified across separate networks. Play with trusted friends; this direct connection has no matchmaking, encryption or robust anti-cheat.
 
@@ -49,7 +53,7 @@ For a private same-network match, one player chooses **Online Multiplayer → Ho
 
 See [asset credits](docs/ASSET_CREDITS.md) for models, sounds, textures, skies and fonts. The historical design documents may describe earlier ideas rather than the current game.
 
-After importing once, run `godot --headless --path . --script res://tests/smoke.gd` to exercise match flow, movement, actions, maps, the market, pickups, survival and resets. `tests/network_peer.gd` checks host/client communication on one machine; it is not a two-device internet test.
+After importing once, run `godot --headless --path . --script res://tests/smoke.gd` to exercise match flow, movement, actions, maps, the market, pickups, survival and local accounts. `tests/network_peer.gd` checks host/client communication on one machine; it is not a two-device internet test.
 
 ### Environment quality update
 
@@ -57,4 +61,8 @@ The forest and desert now use premade Poly Haven scanned assets rather than sphe
 
 Human fighters now use Quaternius Universal Base Characters with detailed faces, hairstyles, adult proportions, field-suit material variants and the matching Universal Animation Library. These replace the earlier cartoon models. The levels are assembled from licensed assets, not imported complete premade maps. Attribution and modification details are in `docs/ASSET_CREDITS.md`.
 
-The richer scenery uses more GPU memory and geometry. A dedicated GPU is recommended; performance on your machine needs checking. Four-sample MSAA is enabled; reduce `Rendering > Anti Aliasing > Quality > MSAA 3D` in Project Settings if needed. Existing controls, survival, purchases and reset-on-launch behaviour are unchanged.
+The richer scenery uses more GPU memory and geometry. A dedicated GPU is recommended; performance on your machine needs checking. Four-sample MSAA is enabled; reduce `Rendering > Anti Aliasing > Quality > MSAA 3D` in Project Settings if needed. Existing controls, survival and purchases remain available. Signed-in accounts now persist between launches; guests remain temporary.
+
+Run `godot --headless --path . --script res://tests/accounts.gd` to verify account creation, wrong-password rejection, account isolation, restart persistence, guest isolation and damaged-save handling.
+
+Shots now use tapered bright cores and fading tracer shells, muzzle flashes, surface-aligned impact rings and sparks. Pulse Rifle, Scatter Blaster and Longshot use distinct local tracer colours; the scatter weapon draws all seven local pellets. Hits still use immediate raycasts; projectile travel is a visual effect. `tests/shots.gd` checks miss handling, impact effects, cleanup and pellet visibility.

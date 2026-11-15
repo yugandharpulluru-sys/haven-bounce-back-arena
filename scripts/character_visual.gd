@@ -21,14 +21,13 @@ func setup(avatar: int, weapon: String, wear_helmet: bool = false) -> void:
 		model.scale = Vector3.ONE
 		model.rotation.y = PI
 		add_child(model)
-		# The source characters use a placeholder dark-grey skin material.
-		var skin_tones := [Color("bc896e"), Color("94654d"), Color("d3aa8d")]
+		# Give the premade hair and eyebrows natural colour variants.
 		for mesh_instance in model.find_children("*", "MeshInstance3D", true, false):
 			for surface in range(mesh_instance.mesh.get_surface_count()):
 				var original = mesh_instance.mesh.surface_get_material(surface)
-				if original is StandardMaterial3D and original.resource_name == "Skin":
+				if original is StandardMaterial3D and "MI_Hair" in original.resource_name:
 					var adjusted: StandardMaterial3D = original.duplicate()
-					adjusted.albedo_color = skin_tones[clampi(avatar, 0, 2)]
+					adjusted.albedo_color = [Color("5b4030"), Color("33291f"), Color("514332")][clampi(avatar, 0, 2)]
 					mesh_instance.set_surface_override_material(surface, adjusted)
 		var skeletons = model.find_children("*", "Skeleton3D", true, false)
 		if not skeletons.is_empty(): skeleton = skeletons[0]

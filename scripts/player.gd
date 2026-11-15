@@ -145,6 +145,8 @@ func fire() -> void:
 	sound.pitch_scale = randf_range(0.94, 1.06)
 	sound.play()
 	character.fire_animation()
+	var shot_color := Color("79dcff") if weapon == "Pulse Rifle" else (Color("ffc376") if weapon == "Scatter Blaster" else Color("c9aeff"))
+	arena.spawn_muzzle(character.muzzle_position(), -camera.global_basis.z, shot_color)
 	for i in range(pellets):
 		var direction := (-camera.global_basis.z + camera.global_basis.x * randf_range(-spread, spread) + camera.global_basis.y * randf_range(-spread, spread)).normalized()
 		var from := camera.global_position
@@ -152,8 +154,8 @@ func fire() -> void:
 		query.exclude = [get_rid()]
 		var hit := get_world_3d().direct_space_state.intersect_ray(query)
 		var destination: Vector3 = hit.get("position", from + direction * reach)
+		arena.spawn_pulse(character.muzzle_position(), destination, shot_color, not hit.is_empty(), hit.get("normal", Vector3.UP))
 		if i == 0:
-			arena.spawn_pulse(character.muzzle_position(), destination)
 			if arena.has_method("broadcast_shot"):
 				arena.broadcast_shot(character.muzzle_position(), destination)
 		if not hit.is_empty():

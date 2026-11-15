@@ -53,6 +53,7 @@ func build(is_forest: bool) -> void:
 	add_to_group("living_landscapes")
 	forest = is_forest
 	rng.seed = 711 if forest else 192
+	add_landmarks()
 	# Irregular rock escarpments hide the collision boundary and frame the horizon.
 	for i in range(48):
 		var angle := TAU * i / 48.0
@@ -128,3 +129,43 @@ func _process(delta: float) -> void:
 		var p := Vector3(cos(angle)*20, 0.02, sin(angle)*20)
 		animals[i].position = p
 		animals[i].rotation.y = -angle
+
+func add_landmarks() -> void:
+	# A distant terrain silhouette gives the playable clearing a wider setting.
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for ring in range(7):
+		for sector in range(96):
+			var points: Array[Vector3] = []
+			for cell in [Vector2i(ring,sector),Vector2i(ring+1,sector),Vector2i(ring+1,sector+1),Vector2i(ring,sector+1)]:
+				var angle: float = cell.y * TAU / 96.0
+				var radius: float = 38.0 + cell.x * 13.0
+				var height := (sin(angle*3.0+0.4)*5.0+cos(angle*7.0)*3.0+10.0) * sin(cell.x*PI/8.0)
+				points.append(Vector3(cos(angle)*radius,height-2.0,sin(angle)*radius))
+			for v in [0,2,1,0,3,2]:
+				surface.set_uv(Vector2(points[v].x, points[v].z) * 0.06)
+				surface.add_vertex(points[v])
+	surface.generate_normals()
+	var hills := MeshInstance3D.new()
+	hills.mesh = surface.commit()
+	var earth := StandardMaterial3D.new()
+	earth.albedo_color = Color("526957") if forest else Color("a9815b")
+	earth.albedo_texture = load("res://assets/polyhaven/grass_diff.jpg" if forest else "res://assets/polyhaven/dry_diff.jpg")
+	earth.roughness = 1.0
+	earth.metallic_specular = 0.1
+	earth.cull_mode = BaseMaterial3D.CULL_DISABLED
+	hills.material_override = earth
+	add_child(hills)
+	# Reclaimed relay gate marks the far end of the map; all its pieces collide.
+	var arena := get_parent()
+	var stone := Color("696f61") if forest else Color("a28868")
+	for side in [-1,1]:
+		arena.box(Vector3(side*5.5,2.6,-20),Vector3(1.4,5.2,1.8),stone)
+		arena.box(Vector3(side*7.5,0.8,-20),Vector3(3,1.6,1.4),stone.darkened(0.12))
+		arena.box(Vector3(side*5.5,4.1,-18.98),Vector3(0.32,0.8,0.12),Color("e8bc77"),false,0.5)
+	arena.box(Vector3(0,5.4,-20),Vector3(12.5,0.8,2.0),stone)
+	for p in [Vector3(-18,0,-16),Vector3(17,0,16)]:
+		var prop: Node3D = load("res://assets/quaternius/Prop_Barrel1.gltf").instantiate()
+		prop.position = p
+		prop.scale = Vector3.ONE * 0.8
+		add_child(prop)

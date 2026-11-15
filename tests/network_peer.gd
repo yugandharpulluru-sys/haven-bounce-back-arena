@@ -3,6 +3,13 @@ extends SceneTree
 func _initialize() -> void:
 	call_deferred("run")
 
+func wait_for(condition: Callable) -> bool:
+	var deadline := Time.get_ticks_msec() + 15000
+	while Time.get_ticks_msec() < deadline:
+		if condition.call(): return true
+		await create_timer(0.05).timeout
+	return false
+
 func run() -> void:
 	var scene = load("res://scenes/main.tscn").instantiate()
 	var role = OS.get_cmdline_user_args()[0]
@@ -13,7 +20,7 @@ func run() -> void:
 	scene.set_profile("Net " + role)
 	if role == "host":
 		scene.host_online()
-		await create_timer(3.0).timeout
+		await wait_for(func(): return is_instance_valid(scene.arena) and scene.online_players.size() == 2 and scene.arena.remotes.size() == 1)
 		if scene.online_players.size() != 2 or scene.arena.remotes.size() != 1:
 			push_error("host did not receive client")
 			quit(1)
@@ -26,19 +33,20 @@ func run() -> void:
 		scene.send_online_shot(Vector3(0, 1, 0), Vector3(2, 1, 0))
 		scene.send_online_hit(other, 55)
 		scene.send_online_hit(other, 55)
-		await create_timer(1.5).timeout
+		await wait_for(func(): return int(scene.online_scores.get(1, 0)) == 1)
 		if int(scene.online_scores.get(1, 0)) != 1:
 			push_error("host scoring failed")
 			quit(1)
 			return
 		print("HOST PASS: connected, spawned peer, transmitted shots and scored")
-		await create_timer(2.0).timeout
+		await wait_for(func(): return int(scene.online_scores.get(other, 0)) == 1)
+		await create_timer(0.5).timeout
 		quit(0)
 	else:
 		scene.show_online()
 		scene.address_box.text = "127.0.0.1"
 		scene.join_online()
-		await create_timer(4.0).timeout
+		await wait_for(func(): return is_instance_valid(scene.arena) and scene.arena.remotes.size() == 1 and scene.arena.remote_shots_seen >= 1)
 		if not is_instance_valid(scene.arena) or scene.arena.remotes.size() != 1:
 			push_error("client did not receive host")
 			quit(1)
@@ -53,7 +61,7 @@ func run() -> void:
 			return
 		scene.send_online_hit(1, 55)
 		scene.send_online_hit(1, 55)
-		await create_timer(1.0).timeout
+		await wait_for(func(): return scene.arena.own_score == 1)
 		if scene.arena.own_score != 1:
 			push_error("client scoring failed")
 			quit(1)

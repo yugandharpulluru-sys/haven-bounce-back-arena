@@ -57,3 +57,7 @@ Licence: SIL Open Font License 1.1. The font and licence are in `assets/fonts/`.
 - **Poly Haven scanned models**, CC0: https://polyhaven.com/a/tree_small_02, https://polyhaven.com/a/rock_07, https://polyhaven.com/a/fern_02, https://polyhaven.com/a/grass_medium_01. Geometry simplified for real-time use, exported to GLB with original 1K PBR textures; foliage wind added in Godot. https://polyhaven.com/license
 - **Fox**: model by PixelMannen (CC0); rig and animation by tomkranis (CC BY 4.0); glTF conversion by AsoboStudio and scurest (CC BY 4.0). https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox . Source attribution preserved in `assets/licenses/Fox-attribution.md`. Scaled and used with its Walk animation. https://creativecommons.org/licenses/by/4.0/
 - Arena layouts and ribbed cactus geometry are authored for this project. These are assembled environments using premade assets, not downloaded complete maps.
+
+## Layered outfit update
+
+Quaternius **Modular Character Outfits – Fantasy (Standard)**: https://quaternius.itch.io/modular-character-outfits-fantasy — CC0. Premade male/female Ranger and male Peasant outfits replace the painted field suits. Outfits are bound to the matching character skeleton; hidden underlying body surfaces are removed to prevent clipping, textures resized to 1K. Source licence included in `assets/licenses/Quaternius-Outfits.txt`. Face presentation uses softer portrait lighting and natural hair colour overrides. Paths, distant terrain and relay-gate layout are project-authored.

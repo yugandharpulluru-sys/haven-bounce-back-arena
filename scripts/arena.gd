@@ -122,7 +122,11 @@ func box(pos: Vector3, size: Vector3, color: Color, solid: bool = true, glow: fl
 	var shape := BoxMesh.new()
 	shape.size = size
 	mesh.mesh = shape
-	var surface := material(color, 0.35, glow)
+	var surface := material(color, 0.0 if natural_ground else 0.35, glow)
+	if natural_ground and size.y >= 0.8 and glow == 0.0:
+		surface.albedo_texture = load("res://assets/polyhaven/concrete_diff.jpg")
+		surface.uv1_scale = Vector3(2, 2, 1)
+		surface.roughness = 1.0
 	if size.x > 30 and size.z > 30 and size.y < 1:
 		surface.albedo_color = (Color("88917a") if ground_texture.ends_with("grass_diff.jpg") else Color("bfa783")) if natural_ground else color.lightened(0.45)
 		surface.albedo_texture = load(ground_texture)
@@ -133,6 +137,13 @@ func box(pos: Vector3, size: Vector3, color: Color, solid: bool = true, glow: fl
 			surface.roughness_texture = load("res://assets/polyhaven/concrete_rough.jpg")
 		surface.uv1_scale = Vector3(10, 10, 1)
 	mesh.material_override = surface
+	if natural_ground and size.x > 30 and size.z > 30 and size.y < 1:
+		var terrain := ShaderMaterial.new()
+		terrain.shader = preload("res://assets/shaders/ground.gdshader")
+		terrain.set_shader_parameter("ground_tex", load(ground_texture))
+		terrain.set_shader_parameter("path_tex", load("res://assets/polyhaven/dry_diff.jpg"))
+		terrain.set_shader_parameter("forest", ground_texture.ends_with("grass_diff.jpg"))
+		mesh.material_override = terrain
 	if solid:
 		var body := StaticBody3D.new()
 		body.position = pos
@@ -387,34 +398,59 @@ func update_shield(value: int) -> void:
 	if is_instance_valid(hud_shield):
 		hud_shield.text = "⬡  SHIELD %d" % value
 
-func spawn_pulse(from: Vector3, to: Vector3, color: Color = Color("6eeaff")) -> void:
-	var projectile := MeshInstance3D.new()
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.07
-	mesh.height = 0.14
-	projectile.mesh = mesh
-	projectile.material_override = material(color, 0.0, 2.2)
-	projectile.position = to_local(from)
+func spawn_pulse(from: Vector3, to: Vector3, color: Color = Color("6eeaff"), did_hit: bool = true, normal: Vector3 = Vector3.UP) -> void:
+	var projectile := Node3D.new()
+	projectile.set_script(preload("res://scripts/shot_visual.gd"))
 	add_child(projectile)
-	projectile.add_to_group("shot_effects")
-	var duration := clampf(from.distance_to(to) / 90.0, 0.07, 0.45)
-	var tween := create_tween()
-	tween.tween_property(projectile, "position", to_local(to), duration)
-	tween.tween_callback(func(): spawn_impact(to, color))
-	tween.tween_callback(projectile.queue_free)
+	projectile.setup(from, to, color, did_hit, normal)
 
-func spawn_impact(where: Vector3, color: Color) -> void:
-	var flash := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.15
-	sphere.height = 0.3
-	flash.mesh = sphere
-	flash.material_override = material(color, 0.0, 3.0)
-	flash.position = to_local(where)
+func spawn_muzzle(where: Vector3, direction: Vector3, color: Color) -> void:
+	var flash := Node3D.new()
 	add_child(flash)
-	var effect := create_tween()
-	effect.tween_property(flash, "scale", Vector3.ZERO, 0.18)
-	effect.tween_callback(flash.queue_free)
+	flash.global_position = where
+	if direction.length_squared() > 0.01:
+		flash.look_at(where + direction, Vector3.RIGHT if absf(direction.normalized().dot(Vector3.UP)) > 0.98 else Vector3.UP)
+	var fx = preload("res://scripts/shot_visual.gd")
+	var tip: MeshInstance3D = fx.beam(flash, 0.12, 0.30, Color("fff0c0"))
+	tip.position.z = -0.15
+	var halo: MeshInstance3D = fx.beam(flash, 0.20, 0.16, color, 0.35)
+	halo.position.z = -0.08
+	var tween := create_tween()
+	tween.tween_property(flash, "scale", Vector3.ONE * 0.05, 0.065)
+	tween.tween_callback(flash.queue_free)
+
+func spawn_impact(where: Vector3, color: Color, normal: Vector3 = Vector3.UP) -> void:
+	var burst := Node3D.new()
+	add_child(burst)
+	burst.global_position = where + normal * 0.025
+	burst.add_to_group("impact_effects")
+	var fx = preload("res://scripts/shot_visual.gd")
+	for i in range(6):
+		var spark := Node3D.new()
+		burst.add_child(spark)
+		var direction := (normal + Vector3(randf_range(-1,1), randf_range(-0.3,1), randf_range(-1,1))).normalized()
+		if direction.length_squared() < 0.01: direction = Vector3.UP
+		spark.look_at(spark.global_position + direction, Vector3.RIGHT if absf(direction.dot(Vector3.UP)) > 0.98 else Vector3.UP)
+		fx.beam(spark, 0.014, 0.14, Color("ffd398") if i % 2 else color)
+		var tween := create_tween().set_parallel(true)
+		tween.tween_property(spark, "position", direction * randf_range(0.35, 0.85), 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(spark, "scale", Vector3.ZERO, 0.18)
+	var ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.07
+	torus.outer_radius = 0.1
+	torus.rings = 12
+	torus.ring_segments = 6
+	ring.mesh = torus
+	ring.material_override = fx.glow(color, 0.6)
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	burst.add_child(ring)
+	if normal.normalized().dot(Vector3.UP) < -0.999: ring.rotation.x = PI
+	elif absf(normal.normalized().dot(Vector3.UP)) < 0.999: ring.quaternion = Quaternion(Vector3.UP, normal.normalized())
+	var fade := create_tween().set_parallel(true)
+	fade.tween_property(ring, "scale", Vector3.ONE * 3.5, 0.18)
+	fade.tween_property(ring.material_override, "albedo_color:a", 0.0, 0.18)
+	fade.chain().tween_callback(burst.queue_free)
 
 func bot_defeated(_pos: Vector3) -> void:
 	if ended:
