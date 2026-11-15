@@ -30,3 +30,7 @@ Shots have a bright core, layered tracer trail, muzzle flash and short-lived imp
 Godot 4.6.3 import and automated gameplay checks passed: all five arenas, all three avatar animation sets, movement, shooting, pickups, purchases and survival waves. Account tests verify persistent signed-in progress and temporary guests. A local host/client multiplayer test passed. The screens above were rendered in Godot's Compatibility renderer using software rendering; they are actual game captures. Hardware GPU performance and internet multiplayer have not been benchmarked in this update.
 
 Asset sources, licences and modifications: [ASSET_CREDITS.md](ASSET_CREDITS.md).
+
+## Opening screen and enemy behaviour
+
+The opening screen and lobby now use warm ivory type, charcoal controls and burnt-orange primary actions over a live 3D arena. Ground robots pursue on a shared clearance grid and use their native running clips. Pursuers close the gap, flankers reposition, and cover blocks their attacks. Reaction windows and difficulty settings remain in place.

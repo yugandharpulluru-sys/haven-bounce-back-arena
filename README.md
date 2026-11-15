@@ -66,3 +66,9 @@ The richer scenery uses more GPU memory and geometry. A dedicated GPU is recomme
 Run `godot --headless --path . --script res://tests/accounts.gd` to verify account creation, wrong-password rejection, account isolation, restart persistence, guest isolation and damaged-save handling.
 
 Shots now use tapered bright cores and fading tracer shells, muzzle flashes, surface-aligned impact rings and sparks. Pulse Rifle, Scatter Blaster and Longshot use distinct local tracer colours; the scatter weapon draws all seven local pellets. Hits still use immediate raycasts; projectile travel is a visual effect. `tests/shots.gd` checks miss handling, impact effects, cleanup and pellet visibility.
+
+### Opening screens and pursuing bots
+
+The opening screen and lobby use a charcoal, ivory and burnt-orange palette, a brighter live 3D backdrop, a human character showcase and one clear primary play action. Supporting menus use the same neutral controls.
+
+Bots now share a collision-clearance pathfinding grid built once per match. They pursue the player around cover instead of stopping at 13 metres. Ground robots play their native running animations. The three robot types use different fighting distances; the flanker repositions, while the closer-range robot presses forward. Bots keep separation from teammates, require line of sight to fire, and give a brief reaction window after acquiring the player. Difficulty still controls speed, attack frequency and accuracy. `tests/bot_navigation.gd` checks pursuit, cover routing, animation, blocked shots and respawn.

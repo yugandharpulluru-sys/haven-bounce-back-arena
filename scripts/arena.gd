@@ -36,6 +36,7 @@ var wave_kills := 0
 var wave_target := 8
 var ground_texture := "res://assets/polyhaven/concrete_diff.jpg"
 var natural_ground := false
+var navigation: Node
 
 func start_match(map_index: int, difficulty: int, weapon: String) -> void:
 	accent = colors[map_index]
@@ -64,6 +65,10 @@ func start_match(map_index: int, difficulty: int, weapon: String) -> void:
 		add_child(bot)
 		bot.setup(self, human, difficulty, point, bot_kind)
 		bot_kind += 1
+	navigation = Node.new()
+	navigation.set_script(preload("res://scripts/arena_navigation.gd"))
+	add_child(navigation)
+	navigation.build()
 	bot_shot_sound = AudioStreamPlayer.new()
 	bot_shot_sound.stream = load("res://assets/audio/impactMetal_000.ogg")
 	bot_shot_sound.volume_db = -20
@@ -267,7 +272,7 @@ func build_hud(map_title: String, weapon: String) -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(root)
 	var top := ColorRect.new()
-	top.color = Color(0.03, 0.06, 0.09, 0.78)
+	top.color = Color(0.06, 0.065, 0.075, 0.86)
 	top.anchor_right = 1
 	top.offset_bottom = 65
 	root.add_child(top)
@@ -339,7 +344,7 @@ func build_hud(map_title: String, weapon: String) -> void:
 	hud_hit.offset_top = -26
 	hud_hit.visible = false
 	root.add_child(hud_hit)
-	hud_message = hud_label("", 20, Color("82f4f0"))
+	hud_message = hud_label("", 20, Color("eed8b8"))
 	hud_message.anchor_left = 0.5
 	hud_message.anchor_right = 0.5
 	hud_message.offset_left = -180
